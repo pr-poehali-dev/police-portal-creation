@@ -115,11 +115,13 @@ const Index = () => {
         <Card className="w-full max-w-md shadow-2xl">
           <CardHeader className="space-y-1">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
-                <Icon name="Shield" size={32} className="text-white" />
-              </div>
+              <img 
+                src="https://cdn.poehali.dev/projects/a58cc482-61d1-44bc-80a2-439e4fdb9f16/bucket/606da78c-a0cf-4d2e-b111-08e476ccf73a.png" 
+                alt="Police Logo"
+                className="w-24 h-24 object-contain"
+              />
             </div>
-            <CardTitle className="text-2xl text-center">Портал МВД</CardTitle>
+            <CardTitle className="text-2xl text-center">Портал полиции</CardTitle>
             <CardDescription className="text-center">Система управления экипажами</CardDescription>
           </CardHeader>
           <CardContent>
@@ -148,11 +150,13 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <Icon name="Shield" size={24} className="text-white" />
-              </div>
+              <img 
+                src="https://cdn.poehali.dev/projects/a58cc482-61d1-44bc-80a2-439e4fdb9f16/bucket/606da78c-a0cf-4d2e-b111-08e476ccf73a.png" 
+                alt="Police Logo"
+                className="w-10 h-10 object-contain"
+              />
               <div>
-                <h1 className="text-xl font-bold text-white">Портал МВД</h1>
+                <h1 className="text-xl font-bold text-white">Портал полиции</h1>
                 <p className="text-sm text-white/70">Управление экипажами</p>
               </div>
             </div>
