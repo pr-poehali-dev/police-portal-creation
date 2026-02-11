@@ -24,6 +24,7 @@ interface Crew {
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile">("crews");
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [crews, setCrews] = useState<Crew[]>([
     {
@@ -148,21 +149,21 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-secondary border-b border-secondary-foreground/10 sticky top-0 z-50 backdrop-blur-sm bg-secondary/95">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="container mx-auto px-4 py-3 md:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 md:gap-3">
               <img 
                 src="https://cdn.poehali.dev/projects/a58cc482-61d1-44bc-80a2-439e4fdb9f16/bucket/606da78c-a0cf-4d2e-b111-08e476ccf73a.png" 
                 alt="Police Logo"
-                className="w-10 h-10 object-contain"
+                className="w-8 h-8 md:w-10 md:h-10 object-contain"
               />
-              <div>
-                <h1 className="text-xl font-bold text-white">Портал полиции</h1>
-                <p className="text-sm text-white/70">Управление экипажами</p>
+              <div className="hidden sm:block">
+                <h1 className="text-lg md:text-xl font-bold text-white">Портал полиции</h1>
+                <p className="text-xs md:text-sm text-white/70">Управление экипажами</p>
               </div>
             </div>
 
-            <nav className="flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1">
               <Button
                 variant={activeTab === "my-crew" ? "secondary" : "ghost"}
                 className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
@@ -250,24 +251,53 @@ const Index = () => {
                 </DialogContent>
               </Dialog>
               
-              <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarFallback className="bg-primary text-white">ИИ</AvatarFallback>
+              <div className="hidden md:flex items-center gap-3">
+                <Avatar className="w-8 h-8 md:w-10 md:h-10">
+                  <AvatarFallback className="bg-primary text-white text-sm">ИИ</AvatarFallback>
                 </Avatar>
-                <div className="hidden md:block">
+                <div className="hidden lg:block">
                   <p className="text-sm font-medium text-white">Иванов Иван</p>
                   <p className="text-xs text-white/70">Старший лейтенант</p>
                 </div>
               </div>
             </div>
           </div>
+          
+          {showMobileMenu && (
+            <nav className="lg:hidden mt-4 pb-2 flex flex-col gap-2">
+              <Button
+                variant={activeTab === "my-crew" ? "secondary" : "ghost"}
+                className={`justify-start ${activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}`}
+                onClick={() => { setActiveTab("my-crew"); setShowMobileMenu(false); }}
+              >
+                <Icon name="Users" size={18} className="mr-2" />
+                Мой экипаж
+              </Button>
+              <Button
+                variant={activeTab === "crews" ? "secondary" : "ghost"}
+                className={`justify-start ${activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}`}
+                onClick={() => { setActiveTab("crews"); setShowMobileMenu(false); }}
+              >
+                <Icon name="Shield" size={18} className="mr-2" />
+                Экипажи
+              </Button>
+              <Button
+                variant={activeTab === "profile" ? "secondary" : "ghost"}
+                className={`justify-start ${activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}`}
+                onClick={() => { setActiveTab("profile"); setShowMobileMenu(false); }}
+              >
+                <Icon name="User" size={18} className="mr-2" />
+                Профиль
+              </Button>
+            </nav>
+          )}
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-3 md:px-4 py-4 md:py-8">
         {activeTab === "my-crew" && (
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold mb-6">Мой экипаж</h2>
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Мой экипаж</h2>
             <Card className="mb-6">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -345,7 +375,7 @@ const Index = () => {
 
         {activeTab === "profile" && (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold mb-6">Профиль</h2>
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Профиль</h2>
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-4">
@@ -395,7 +425,7 @@ const Index = () => {
 
         {activeTab === "crews" && (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0">
             <CardHeader className="pb-2">
               <CardDescription className="text-green-100">Доступные экипажи</CardDescription>
@@ -455,11 +485,11 @@ const Index = () => {
           </Card>
         </div>
 
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Активные экипажи</h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-0 mb-4 md:mb-6">
+          <h2 className="text-xl md:text-2xl font-bold">Активные экипажи</h2>
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2 w-full sm:w-auto">
                 <Icon name="Plus" size={18} />
                 Создать экипаж
               </Button>
@@ -511,7 +541,7 @@ const Index = () => {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
           {crews.map((crew) => (
             <Card key={crew.id} className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
@@ -549,7 +579,7 @@ const Index = () => {
 
                 <div className="pt-2 border-t space-y-2">
                   <Label className="text-xs">Изменить статус:</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 text-xs md:text-sm">
                     <Button 
                       size="sm" 
                       variant={crew.status === "active" ? "default" : "outline"}
