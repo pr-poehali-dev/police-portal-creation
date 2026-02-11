@@ -162,7 +162,7 @@ const Index = () => {
               </div>
             </div>
 
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="flex items-center gap-1">
               <Button
                 variant={activeTab === "my-crew" ? "secondary" : "ghost"}
                 className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
