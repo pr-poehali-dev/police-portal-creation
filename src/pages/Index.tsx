@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
+import { auth, User } from "@/lib/auth";
 
 type CrewStatus = "active" | "patrol" | "responding" | "offline";
 
@@ -23,7 +25,10 @@ interface Crew {
 }
 
 const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile">("crews");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -67,6 +72,21 @@ const Index = () => {
     responding: { label: "Задержка на ситуации", color: "bg-orange-600", icon: "AlertTriangle" },
     offline: { label: "Требуется поддержка", color: "bg-red-600", icon: "AlertOctagon" }
   };
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const storedUser = auth.getStoredUser();
+      if (storedUser) {
+        const verifiedUser = await auth.verify();
+        if (verifiedUser) {
+          setUser(verifiedUser);
+          setIsAuthenticated(true);
+        }
+      }
+      setLoading(false);
+    };
+    checkAuth();
+  }, []);
 
   const addNotification = (message: string, type: "info" | "warning" | "error") => {
     const newNotif = {
@@ -112,6 +132,67 @@ const Index = () => {
     });
   };
 
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    try {
+      const result = await auth.login(email, password);
+      setUser(result.user);
+      setIsAuthenticated(true);
+      toast.success('Вход выполнен', {
+        description: `Добро пожаловать, ${result.user.full_name}!`
+      });
+    } catch (error) {
+      toast.error('Ошибка входа', {
+        description: error instanceof Error ? error.message : 'Неверный email или пароль'
+      });
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      email: formData.get('email') as string,
+      password: formData.get('password') as string,
+      full_name: formData.get('full_name') as string,
+      rank: formData.get('rank') as string,
+      badge_number: formData.get('badge_number') as string,
+      department: formData.get('department') as string,
+    };
+
+    try {
+      const result = await auth.register(data);
+      setUser(result.user);
+      setIsAuthenticated(true);
+      toast.success('Регистрация завершена', {
+        description: `Добро пожаловать, ${result.user.full_name}!`
+      });
+    } catch (error) {
+      toast.error('Ошибка регистрации', {
+        description: error instanceof Error ? error.message : 'Проверьте введённые данные'
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    auth.logout();
+    setUser(null);
+    setIsAuthenticated(false);
+    toast.info('Выход выполнен');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary/90 to-primary/20 flex items-center justify-center">
+        <div className="text-white text-xl">Загрузка...</div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary/90 to-primary/20 flex items-center justify-center p-4">
@@ -128,19 +209,54 @@ const Index = () => {
             <CardDescription className="text-center">Система управления экипажами</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login">Логин</Label>
-                <Input id="login" placeholder="Введите логин" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Пароль</Label>
-                <Input id="password" type="password" placeholder="Введите пароль" />
-              </div>
-              <Button className="w-full" onClick={() => setIsAuthenticated(true)}>
-                Войти
-              </Button>
-            </div>
+            <Tabs value={authMode} onValueChange={(v) => setAuthMode(v as 'login' | 'register')}>
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="login">Вход</TabsTrigger>
+                <TabsTrigger value="register">Регистрация</TabsTrigger>
+              </TabsList>
+              <TabsContent value="login">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input id="login-email" name="email" type="email" placeholder="user@police.ru" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Пароль</Label>
+                    <Input id="login-password" name="password" type="password" placeholder="Введите пароль" required />
+                  </div>
+                  <Button type="submit" className="w-full">Войти</Button>
+                </form>
+              </TabsContent>
+              <TabsContent value="register">
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-email">Email</Label>
+                    <Input id="reg-email" name="email" type="email" placeholder="user@police.ru" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-password">Пароль</Label>
+                    <Input id="reg-password" name="password" type="password" placeholder="Минимум 6 символов" required minLength={6} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-full-name">Полное имя</Label>
+                    <Input id="reg-full-name" name="full_name" placeholder="Иванов Иван Иванович" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-rank">Звание</Label>
+                    <Input id="reg-rank" name="rank" placeholder="Лейтенант" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-badge">Служебный номер</Label>
+                    <Input id="reg-badge" name="badge_number" placeholder="12345" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-dept">Подразделение</Label>
+                    <Input id="reg-dept" name="department" placeholder="Центральный отдел" />
+                  </div>
+                  <Button type="submit" className="w-full">Зарегистрироваться</Button>
+                </form>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
@@ -280,11 +396,13 @@ const Index = () => {
               
               <div className="hidden md:flex items-center gap-3">
                 <Avatar className="w-8 h-8 md:w-10 md:h-10">
-                  <AvatarFallback className="bg-primary text-white text-sm">ИИ</AvatarFallback>
+                  <AvatarFallback className="bg-primary text-white text-sm">
+                    {user?.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) || 'ИИ'}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="hidden lg:block">
-                  <p className="text-sm font-medium text-white">Иванов Иван</p>
-                  <p className="text-xs text-white/70">Старший лейтенант</p>
+                  <p className="text-sm font-medium text-white">{user?.full_name || 'Пользователь'}</p>
+                  <p className="text-xs text-white/70">{user?.rank || 'Сотрудник'}</p>
                 </div>
               </div>
             </div>
@@ -378,40 +496,42 @@ const Index = () => {
               <CardHeader>
                 <div className="flex items-center gap-4">
                   <Avatar className="w-20 h-20">
-                    <AvatarFallback className="bg-primary text-white text-2xl">ИИ</AvatarFallback>
+                    <AvatarFallback className="bg-primary text-white text-2xl">
+                      {user?.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) || 'ИИ'}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
-                    <CardTitle className="text-2xl">Иванов Иван Иванович</CardTitle>
-                    <CardDescription>Старший лейтенант</CardDescription>
+                    <CardTitle className="text-2xl">{user?.full_name || 'Пользователь'}</CardTitle>
+                    <CardDescription>{user?.rank || 'Сотрудник'}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-4">
                   <div>
-                    <Label className="text-muted-foreground">Служебный номер</Label>
-                    <p className="font-medium">№ 12345</p>
+                    <Label className="text-muted-foreground">Email</Label>
+                    <p className="font-medium">{user?.email || 'Не указан'}</p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Подразделение</Label>
-                    <p className="font-medium">Центральный отдел полиции</p>
-                  </div>
+                  {user?.badge_number && (
+                    <div>
+                      <Label className="text-muted-foreground">Служебный номер</Label>
+                      <p className="font-medium">№ {user.badge_number}</p>
+                    </div>
+                  )}
+                  {user?.department && (
+                    <div>
+                      <Label className="text-muted-foreground">Подразделение</Label>
+                      <p className="font-medium">{user.department}</p>
+                    </div>
+                  )}
                   <div>
                     <Label className="text-muted-foreground">Текущий экипаж</Label>
                     <p className="font-medium">А-101</p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Должность</Label>
-                    <p className="font-medium">Командир экипажа</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Контактный телефон</Label>
-                    <p className="font-medium">+7 (900) 123-45-67</p>
-                  </div>
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleLogout}>
                     <Icon name="LogOut" size={18} className="mr-2" />
                     Выйти из системы
                   </Button>
