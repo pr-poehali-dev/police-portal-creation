@@ -52,15 +52,31 @@ const Index = () => {
   ]);
 
   const [notifications, setNotifications] = useState([
-    { id: "1", message: "Экипаж В-312 изменил статус на 'Выезд на вызов'", time: "1 мин назад", type: "warning" },
+    { id: "1", message: "Экипаж В-312 изменил статус на 'Задержка на ситуации'", time: "1 мин назад", type: "warning" },
     { id: "2", message: "Экипаж А-101 завершил патрулирование", time: "15 мин назад", type: "info" }
   ]);
+  
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const statusConfig: Record<CrewStatus, { label: string; color: string; icon: string }> = {
-    active: { label: "Готов", color: "bg-green-500", icon: "CheckCircle" },
-    patrol: { label: "Патрулирование", color: "bg-blue-500", icon: "Route" },
-    responding: { label: "Выезд на вызов", color: "bg-amber-500", icon: "Siren" },
-    offline: { label: "Не на смене", color: "bg-gray-400", icon: "CircleOff" }
+    active: { label: "Доступен", color: "bg-green-500", icon: "CheckCircle" },
+    patrol: { label: "Занят", color: "bg-yellow-500", icon: "Clock" },
+    responding: { label: "Задержка на ситуации", color: "bg-orange-600", icon: "AlertTriangle" },
+    offline: { label: "Требуется поддержка", color: "bg-red-600", icon: "AlertOctagon" }
+  };
+
+  const addNotification = (message: string, type: "info" | "warning" | "error") => {
+    const newNotif = {
+      id: String(Date.now()),
+      message,
+      time: "только что",
+      type
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+    
+    const audio = new Audio();
+    audio.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFA==";
+    audio.play().catch(() => {});
   };
 
   const handleCreateCrew = () => {
@@ -84,6 +100,10 @@ const Index = () => {
       crew.id === crewId ? { ...crew, status: newStatus, lastUpdate: "только что" } : crew
     ));
     const crew = crews.find(c => c.id === crewId);
+    const notifMessage = `Экипаж ${crew?.callSign} изменил статус на '${statusConfig[newStatus].label}'`;
+    
+    addNotification(notifMessage, newStatus === "offline" ? "error" : newStatus === "responding" ? "warning" : "info");
+    
     toast.info("Статус обновлен", {
       description: `Экипаж ${crew?.callSign} → ${statusConfig[newStatus].label}`
     });
@@ -138,14 +158,65 @@ const Index = () => {
             </div>
             
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="relative text-white hover:text-white hover:bg-white/10">
-                <Icon name="Bell" size={20} />
-                {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-white text-xs rounded-full flex items-center justify-center animate-pulse-soft">
-                    {notifications.length}
-                  </span>
-                )}
-              </Button>
+              <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative text-white hover:text-white hover:bg-white/10">
+                    <Icon name="Bell" size={20} />
+                    {notifications.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-white text-xs rounded-full flex items-center justify-center animate-pulse-soft">
+                        {notifications.length}
+                      </span>
+                    )}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>История уведомлений</DialogTitle>
+                    <DialogDescription>
+                      Все изменения статусов и события в системе
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="max-h-[400px] overflow-y-auto space-y-3 py-4">
+                    {notifications.length === 0 ? (
+                      <div className="text-center text-muted-foreground py-8">
+                        <Icon name="Bell" size={48} className="mx-auto mb-3 opacity-50" />
+                        <p>Нет уведомлений</p>
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div 
+                          key={notif.id} 
+                          className={`p-4 rounded-lg border-l-4 ${
+                            notif.type === "error" ? "border-red-500 bg-red-50" :
+                            notif.type === "warning" ? "border-orange-500 bg-orange-50" :
+                            "border-blue-500 bg-blue-50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-foreground">{notif.message}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
+                            </div>
+                            <Icon 
+                              name={notif.type === "error" ? "AlertOctagon" : notif.type === "warning" ? "AlertTriangle" : "Info"} 
+                              size={18} 
+                              className={notif.type === "error" ? "text-red-600" : notif.type === "warning" ? "text-orange-600" : "text-blue-600"}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => setNotifications([])}>
+                      Очистить всё
+                    </Button>
+                    <Button onClick={() => setShowNotifications(false)}>
+                      Закрыть
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               
               <div className="flex items-center gap-3">
                 <Avatar>
@@ -165,7 +236,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0">
             <CardHeader className="pb-2">
-              <CardDescription className="text-green-100">Активные экипажи</CardDescription>
+              <CardDescription className="text-green-100">Доступные экипажи</CardDescription>
               <CardTitle className="text-4xl font-bold">
                 {crews.filter(c => c.status === "active").length}
               </CardTitle>
@@ -178,32 +249,32 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
+          <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white border-0">
             <CardHeader className="pb-2">
-              <CardDescription className="text-blue-100">На патруле</CardDescription>
+              <CardDescription className="text-yellow-100">Занятые экипажи</CardDescription>
               <CardTitle className="text-4xl font-bold">
                 {crews.filter(c => c.status === "patrol").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Icon name="Route" size={16} />
-                <span className="text-sm">Патрулируют район</span>
+                <Icon name="Clock" size={16} />
+                <span className="text-sm">На задании</span>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0">
+          <Card className="bg-gradient-to-br from-orange-600 to-orange-700 text-white border-0">
             <CardHeader className="pb-2">
-              <CardDescription className="text-amber-100">На вызове</CardDescription>
+              <CardDescription className="text-orange-100">Задержка на ситуации</CardDescription>
               <CardTitle className="text-4xl font-bold">
                 {crews.filter(c => c.status === "responding").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Icon name="Siren" size={16} />
-                <span className="text-sm">Выезд на место</span>
+                <Icon name="AlertTriangle" size={16} />
+                <span className="text-sm">Требуют внимания</span>
               </div>
             </CardContent>
           </Card>
@@ -254,10 +325,10 @@ const Index = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Готов</SelectItem>
-                      <SelectItem value="patrol">Патрулирование</SelectItem>
-                      <SelectItem value="responding">Выезд на вызов</SelectItem>
-                      <SelectItem value="offline">Не на смене</SelectItem>
+                      <SelectItem value="active">Доступен</SelectItem>
+                      <SelectItem value="patrol">Занят</SelectItem>
+                      <SelectItem value="responding">Задержка на ситуации</SelectItem>
+                      <SelectItem value="offline">Требуется поддержка</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -324,7 +395,7 @@ const Index = () => {
                       className="gap-1"
                     >
                       <Icon name="CheckCircle" size={14} />
-                      Готов
+                      Доступен
                     </Button>
                     <Button 
                       size="sm" 
@@ -332,8 +403,8 @@ const Index = () => {
                       onClick={() => handleStatusChange(crew.id, "patrol")}
                       className="gap-1"
                     >
-                      <Icon name="Route" size={14} />
-                      Патруль
+                      <Icon name="Clock" size={14} />
+                      Занят
                     </Button>
                     <Button 
                       size="sm" 
@@ -341,8 +412,8 @@ const Index = () => {
                       onClick={() => handleStatusChange(crew.id, "responding")}
                       className="gap-1"
                     >
-                      <Icon name="Siren" size={14} />
-                      Вызов
+                      <Icon name="AlertTriangle" size={14} />
+                      Задержка
                     </Button>
                     <Button 
                       size="sm" 
@@ -350,8 +421,8 @@ const Index = () => {
                       onClick={() => handleStatusChange(crew.id, "offline")}
                       className="gap-1"
                     >
-                      <Icon name="CircleOff" size={14} />
-                      Офлайн
+                      <Icon name="AlertOctagon" size={14} />
+                      Поддержка
                     </Button>
                   </div>
                 </div>
