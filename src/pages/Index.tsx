@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
 
@@ -163,35 +164,58 @@ const Index = () => {
               </div>
             </div>
 
-            <nav className="flex items-center gap-1">
-              <Button
-                variant={activeTab === "my-crew" ? "secondary" : "ghost"}
-                className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                onClick={() => setActiveTab("my-crew")}
-                size="sm"
-              >
-                <Icon name="Users" size={16} className="md:mr-2" />
-                <span className="hidden sm:inline">Мой экипаж</span>
-              </Button>
-              <Button
-                variant={activeTab === "crews" ? "secondary" : "ghost"}
-                className={activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                onClick={() => setActiveTab("crews")}
-                size="sm"
-              >
-                <Icon name="Shield" size={16} className="md:mr-2" />
-                <span className="hidden sm:inline">Экипажи</span>
-              </Button>
-              <Button
-                variant={activeTab === "profile" ? "secondary" : "ghost"}
-                className={activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                onClick={() => setActiveTab("profile")}
-                size="sm"
-              >
-                <Icon name="User" size={16} className="md:mr-2" />
-                <span className="hidden sm:inline">Профиль</span>
-              </Button>
-            </nav>
+            <TooltipProvider>
+              <nav className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeTab === "my-crew" ? "secondary" : "ghost"}
+                      className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                      onClick={() => setActiveTab("my-crew")}
+                      size="sm"
+                    >
+                      <Icon name="Users" size={16} className="md:mr-2" />
+                      <span className="hidden sm:inline">Мой экипаж</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="sm:hidden">
+                    <p>Мой экипаж</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeTab === "crews" ? "secondary" : "ghost"}
+                      className={activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                      onClick={() => setActiveTab("crews")}
+                      size="sm"
+                    >
+                      <Icon name="Shield" size={16} className="md:mr-2" />
+                      <span className="hidden sm:inline">Экипажи</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="sm:hidden">
+                    <p>Экипажи</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeTab === "profile" ? "secondary" : "ghost"}
+                      className={activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                      onClick={() => setActiveTab("profile")}
+                      size="sm"
+                    >
+                      <Icon name="User" size={16} className="md:mr-2" />
+                      <span className="hidden sm:inline">Профиль</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="sm:hidden">
+                    <p>Профиль</p>
+                  </TooltipContent>
+                </Tooltip>
+              </nav>
+            </TooltipProvider>
             
             <div className="flex items-center gap-2 md:gap-4">
               <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
@@ -558,7 +582,7 @@ const Index = () => {
                       size="sm" 
                       variant={crew.status === "active" ? "default" : "outline"}
                       onClick={() => handleStatusChange(crew.id, "active")}
-                      className="gap-1"
+                      className={`gap-1 ${crew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
                     >
                       <Icon name="CheckCircle" size={14} />
                       Доступен
@@ -567,7 +591,7 @@ const Index = () => {
                       size="sm" 
                       variant={crew.status === "patrol" ? "default" : "outline"}
                       onClick={() => handleStatusChange(crew.id, "patrol")}
-                      className="gap-1"
+                      className={`gap-1 ${crew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
                     >
                       <Icon name="Clock" size={14} />
                       Занят
@@ -576,7 +600,7 @@ const Index = () => {
                       size="sm" 
                       variant={crew.status === "responding" ? "default" : "outline"}
                       onClick={() => handleStatusChange(crew.id, "responding")}
-                      className="gap-1"
+                      className={`gap-1 ${crew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
                     >
                       <Icon name="AlertTriangle" size={14} />
                       Задержка
@@ -585,7 +609,7 @@ const Index = () => {
                       size="sm" 
                       variant={crew.status === "offline" ? "default" : "outline"}
                       onClick={() => handleStatusChange(crew.id, "offline")}
-                      className="gap-1"
+                      className={`gap-1 ${crew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
                     >
                       <Icon name="AlertOctagon" size={14} />
                       Поддержка
