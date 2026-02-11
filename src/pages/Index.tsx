@@ -163,43 +163,37 @@ const Index = () => {
               </div>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-1">
+            <nav className="flex items-center gap-1">
               <Button
                 variant={activeTab === "my-crew" ? "secondary" : "ghost"}
                 className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
                 onClick={() => setActiveTab("my-crew")}
+                size="sm"
               >
-                <Icon name="Users" size={18} className="mr-2" />
-                Мой экипаж
+                <Icon name="Users" size={16} className="md:mr-2" />
+                <span className="hidden sm:inline">Мой экипаж</span>
               </Button>
               <Button
                 variant={activeTab === "crews" ? "secondary" : "ghost"}
                 className={activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
                 onClick={() => setActiveTab("crews")}
+                size="sm"
               >
-                <Icon name="Shield" size={18} className="mr-2" />
-                Экипажи
+                <Icon name="Shield" size={16} className="md:mr-2" />
+                <span className="hidden sm:inline">Экипажи</span>
               </Button>
               <Button
                 variant={activeTab === "profile" ? "secondary" : "ghost"}
                 className={activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
                 onClick={() => setActiveTab("profile")}
+                size="sm"
               >
-                <Icon name="User" size={18} className="mr-2" />
-                Профиль
+                <Icon name="User" size={16} className="md:mr-2" />
+                <span className="hidden sm:inline">Профиль</span>
               </Button>
             </nav>
             
             <div className="flex items-center gap-2 md:gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="lg:hidden text-white hover:text-white hover:bg-white/10"
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-              >
-                <Icon name="Menu" size={20} />
-              </Button>
-              
               <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative text-white hover:text-white hover:bg-white/10">
@@ -271,35 +265,6 @@ const Index = () => {
               </div>
             </div>
           </div>
-          
-          {showMobileMenu && (
-            <nav className="lg:hidden mt-4 pb-2 flex flex-col gap-2">
-              <Button
-                variant={activeTab === "my-crew" ? "secondary" : "ghost"}
-                className={`justify-start ${activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}`}
-                onClick={() => { setActiveTab("my-crew"); setShowMobileMenu(false); }}
-              >
-                <Icon name="Users" size={18} className="mr-2" />
-                Мой экипаж
-              </Button>
-              <Button
-                variant={activeTab === "crews" ? "secondary" : "ghost"}
-                className={`justify-start ${activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}`}
-                onClick={() => { setActiveTab("crews"); setShowMobileMenu(false); }}
-              >
-                <Icon name="Shield" size={18} className="mr-2" />
-                Экипажи
-              </Button>
-              <Button
-                variant={activeTab === "profile" ? "secondary" : "ghost"}
-                className={`justify-start ${activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}`}
-                onClick={() => { setActiveTab("profile"); setShowMobileMenu(false); }}
-              >
-                <Icon name="User" size={18} className="mr-2" />
-                Профиль
-              </Button>
-            </nav>
-          )}
         </div>
       </header>
 
