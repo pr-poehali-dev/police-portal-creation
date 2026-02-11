@@ -23,6 +23,7 @@ interface Crew {
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile">("crews");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [crews, setCrews] = useState<Crew[]>([
     {
@@ -160,6 +161,33 @@ const Index = () => {
                 <p className="text-sm text-white/70">Управление экипажами</p>
               </div>
             </div>
+
+            <nav className="hidden md:flex items-center gap-1">
+              <Button
+                variant={activeTab === "my-crew" ? "secondary" : "ghost"}
+                className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                onClick={() => setActiveTab("my-crew")}
+              >
+                <Icon name="Users" size={18} className="mr-2" />
+                Мой экипаж
+              </Button>
+              <Button
+                variant={activeTab === "crews" ? "secondary" : "ghost"}
+                className={activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                onClick={() => setActiveTab("crews")}
+              >
+                <Icon name="Shield" size={18} className="mr-2" />
+                Экипажи
+              </Button>
+              <Button
+                variant={activeTab === "profile" ? "secondary" : "ghost"}
+                className={activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                onClick={() => setActiveTab("profile")}
+              >
+                <Icon name="User" size={18} className="mr-2" />
+                Профиль
+              </Button>
+            </nav>
             
             <div className="flex items-center gap-4">
               <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
@@ -237,7 +265,137 @@ const Index = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+        {activeTab === "my-crew" && (
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6">Мой экипаж</h2>
+            <Card className="mb-6">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-2xl mb-2">А-101</CardTitle>
+                    <CardDescription className="flex items-center gap-2">
+                      <Icon name="MapPin" size={14} />
+                      Центральный район, ул. Ленина
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="gap-1">
+                    <Icon name="Clock" size={14} />
+                    Занят
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="font-semibold mb-3">Состав экипажа</h3>
+                  <div className="grid gap-3">
+                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                      <Avatar>
+                        <AvatarFallback className="bg-primary text-white">ИИ</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">Иванов Иван Иванович</p>
+                        <p className="text-sm text-muted-foreground">Старший лейтенант • Командир</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                      <Avatar>
+                        <AvatarFallback className="bg-secondary text-white">ПП</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">Петров Петр Петрович</p>
+                        <p className="text-sm text-muted-foreground">Лейтенант • Водитель</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-3">Изменить статус</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant="outline" className="gap-2">
+                      <Icon name="CheckCircle" size={16} />
+                      Доступен
+                    </Button>
+                    <Button variant="default" className="gap-2">
+                      <Icon name="Clock" size={16} />
+                      Занят
+                    </Button>
+                    <Button variant="outline" className="gap-2">
+                      <Icon name="AlertTriangle" size={16} />
+                      Задержка
+                    </Button>
+                    <Button variant="outline" className="gap-2">
+                      <Icon name="AlertOctagon" size={16} />
+                      Поддержка
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-3">Обновить местоположение</h3>
+                  <div className="flex gap-2">
+                    <Input placeholder="Введите новое местоположение" />
+                    <Button>Обновить</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "profile" && (
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6">Профиль</h2>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-20 h-20">
+                    <AvatarFallback className="bg-primary text-white text-2xl">ИИ</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <CardTitle className="text-2xl">Иванов Иван Иванович</CardTitle>
+                    <CardDescription>Старший лейтенант</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Служебный номер</Label>
+                    <p className="font-medium">№ 12345</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Подразделение</Label>
+                    <p className="font-medium">Центральный отдел полиции</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Текущий экипаж</Label>
+                    <p className="font-medium">А-101</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Должность</Label>
+                    <p className="font-medium">Командир экипажа</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Контактный телефон</Label>
+                    <p className="font-medium">+7 (900) 123-45-67</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <Button variant="outline" className="w-full">
+                    <Icon name="LogOut" size={18} className="mr-2" />
+                    Выйти из системы
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "crews" && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0">
             <CardHeader className="pb-2">
               <CardDescription className="text-green-100">Доступные экипажи</CardDescription>
@@ -434,6 +592,8 @@ const Index = () => {
             </Card>
           ))}
         </div>
+          </>
+        )}
       </main>
     </div>
   );
