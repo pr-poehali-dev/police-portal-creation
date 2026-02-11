@@ -190,7 +190,16 @@ const Index = () => {
               </Button>
             </nav>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="lg:hidden text-white hover:text-white hover:bg-white/10"
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+              >
+                <Icon name="Menu" size={20} />
+              </Button>
+              
               <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative text-white hover:text-white hover:bg-white/10">
