@@ -62,9 +62,6 @@ def handler(event: dict, context) -> dict:
     if not current_user:
         return error_response(401, 'Invalid token', origin)
     
-    if current_user['role'] not in ['admin', 'manager']:
-        return error_response(403, 'Access denied. Admin or Manager role required.', origin)
-    
     try:
         params = event.get('queryStringParameters') or {}
         resource = params.get('resource', 'users')
@@ -76,15 +73,22 @@ def handler(event: dict, context) -> dict:
             client_ip = identity.get('sourceIp', '0.0.0.0')
             
             if method == 'GET':
+                if current_user['role'] not in ['admin', 'manager']:
+                    return error_response(403, 'Access denied. Admin or Manager role required.', origin)
                 return get_logs(event, current_user, origin)
             elif method == 'POST':
                 return create_log(event, current_user, client_ip, origin)
             elif method == 'DELETE':
+                if current_user['role'] not in ['admin', 'manager']:
+                    return error_response(403, 'Access denied. Admin or Manager role required.', origin)
                 return delete_logs(event, current_user, origin)
             else:
                 return error_response(405, 'Method not allowed', origin)
         else:
-            # Работа с пользователями
+            # Работа с пользователями - только для admin и manager
+            if current_user['role'] not in ['admin', 'manager']:
+                return error_response(403, 'Access denied. Admin or Manager role required.', origin)
+            
             if method == 'GET':
                 return get_users(event, current_user, origin)
             elif method == 'POST':
