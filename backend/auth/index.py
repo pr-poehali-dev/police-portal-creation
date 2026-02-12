@@ -47,7 +47,9 @@ def handler(event: dict, context) -> dict:
             return handle_login(body, client_ip, origin)
         elif action == 'verify':
             cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+            print(f"DEBUG verify: cookies={cookies[:50] if cookies else 'EMPTY'}...")
             token = extract_token_from_cookie(cookies)
+            print(f"DEBUG verify: extracted token={token[:20] if token else 'EMPTY'}...")
             return handle_verify(token, origin)
         elif action == 'update_profile':
             cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
@@ -303,7 +305,9 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
 
 def handle_verify(token: str, origin=None) -> dict:
     """Проверка токена и получение данных пользователя"""
+    print(f"DEBUG handle_verify: token={token[:20] if token else 'EMPTY'}...")
     if not token:
+        print("DEBUG handle_verify: NO TOKEN - returning 401")
         return {
             'statusCode': 401,
             'headers': get_security_headers(origin),
@@ -325,8 +329,10 @@ def handle_verify(token: str, origin=None) -> dict:
             (token_hash,)
         )
         user = cur.fetchone()
+        print(f"DEBUG handle_verify: user found={user is not None}")
         
         if not user:
+            print(f"DEBUG handle_verify: NO USER for token_hash={token_hash[:20]}...")
             return {
                 'statusCode': 401,
                 'headers': get_security_headers(origin),
@@ -334,6 +340,7 @@ def handle_verify(token: str, origin=None) -> dict:
                 'isBase64Encoded': False
             }
         
+        print(f"DEBUG handle_verify: SUCCESS - returning user")
         return {
             'statusCode': 200,
             'headers': get_security_headers(origin),
