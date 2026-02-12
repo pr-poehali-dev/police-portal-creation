@@ -828,19 +828,21 @@ const Index = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {bolos.map((bolo) => (
-                  <Card key={bolo.id} className="relative">
-                    {bolo.isArmed && (
-                      <div className="absolute -top-2 -right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg z-10">
-                        <Icon name="AlertTriangle" size={14} />
-                        Вооружен(а)
-                      </div>
-                    )}
+                  <Card key={bolo.id} className="relative min-h-[280px] flex flex-col">
                     <CardHeader>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <Badge variant={bolo.type === 'person' ? 'default' : 'secondary'} className="mb-2">
-                            {bolo.type === 'person' ? 'Личность' : 'Транспортное средство'}
-                          </Badge>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant={bolo.type === 'person' ? 'default' : 'secondary'}>
+                              {bolo.type === 'person' ? 'Личность' : 'Транспортное средство'}
+                            </Badge>
+                            {bolo.isArmed && (
+                              <Badge className="bg-red-600 hover:bg-red-700 text-white border-0">
+                                <Icon name="AlertTriangle" size={12} className="mr-1" />
+                                Вооружен(а)
+                              </Badge>
+                            )}
+                          </div>
                           <CardTitle className="text-lg">{bolo.mainInfo}</CardTitle>
                         </div>
                         <div className="flex gap-1">
@@ -861,14 +863,14 @@ const Index = () => {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-3 flex-1">
                       {bolo.additionalInfo && (
                         <div>
                           <Label className="text-xs text-muted-foreground">Дополнительные сведения</Label>
                           <p className="text-sm mt-1">{bolo.additionalInfo}</p>
                         </div>
                       )}
-                      <div className="text-xs text-muted-foreground pt-2 border-t">
+                      <div className="text-xs text-muted-foreground pt-2 border-t mt-auto">
                         <p>Создано: {new Date(bolo.createdAt).toLocaleString('ru-RU')}</p>
                         {bolo.createdByName && <p>Автор: {bolo.createdByName}</p>}
                       </div>
