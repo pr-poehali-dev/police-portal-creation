@@ -15,6 +15,7 @@ import Icon from "@/components/ui/icon";
 import { auth, User } from "@/lib/auth";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { crewsApi, Crew as ApiCrew } from "@/lib/crews-api";
+import { boloApi, Bolo } from "@/lib/bolo-api";
 
 type CrewStatus = "available" | "busy" | "delay" | "need_help";
 
@@ -23,8 +24,8 @@ const Index = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile" | "settings">(
-    () => (localStorage.getItem('active_tab') as "my-crew" | "crews" | "profile" | "settings") || "crews"
+  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "bolo" | "profile" | "settings">(
+    () => (localStorage.getItem('active_tab') as "my-crew" | "crews" | "bolo" | "profile" | "settings") || "crews"
   );
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -42,6 +43,16 @@ const Index = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [locationInput, setLocationInput] = useState('');
   const [sortBy, setSortBy] = useState<'time' | 'callsign' | 'status-priority' | 'status-available'>('time');
+  const [bolos, setBolos] = useState<Bolo[]>([]);
+  const [bolosLoading, setBolosLoading] = useState(false);
+  const [showBoloDialog, setShowBoloDialog] = useState(false);
+  const [editingBolo, setEditingBolo] = useState<Bolo | null>(null);
+  const [boloForm, setBoloForm] = useState({
+    type: 'person' as 'person' | 'vehicle',
+    mainInfo: '',
+    additionalInfo: '',
+    isArmed: false
+  });
 
   const statusConfig: Record<CrewStatus, { label: string; color: string; icon: string }> = {
     available: { label: "Доступен", color: "bg-green-500", icon: "CheckCircle" },
@@ -68,6 +79,7 @@ const Index = () => {
   useEffect(() => {
     if (isAuthenticated) {
       loadCrews();
+      loadBolos();
     }
   }, [isAuthenticated]);
 
@@ -104,6 +116,89 @@ const Index = () => {
     } catch (error) {
       console.error('Failed to load available users:', error);
     }
+  };
+
+  const loadBolos = async () => {
+    try {
+      setBolosLoading(true);
+      const token = auth.getToken();
+      if (!token) return;
+      
+      const data = await boloApi.getAll(token);
+      setBolos(data);
+    } catch (error) {
+      console.error('Failed to load BOLOs:', error);
+      toast.error('Ошибка загрузки ориентировок');
+    } finally {
+      setBolosLoading(false);
+    }
+  };
+
+  const handleCreateBolo = async () => {
+    try {
+      const token = auth.getToken();
+      if (!token) return;
+      
+      await boloApi.create(token, boloForm);
+      toast.success('Ориентировка создана');
+      setShowBoloDialog(false);
+      setBoloForm({ type: 'person', mainInfo: '', additionalInfo: '', isArmed: false });
+      loadBolos();
+    } catch (error) {
+      toast.error('Ошибка', {
+        description: error instanceof Error ? error.message : 'Не удалось создать ориентировку'
+      });
+    }
+  };
+
+  const handleUpdateBolo = async () => {
+    try {
+      if (!editingBolo) return;
+      const token = auth.getToken();
+      if (!token) return;
+      
+      await boloApi.update(token, editingBolo.id, boloForm);
+      toast.success('Ориентировка обновлена');
+      setShowBoloDialog(false);
+      setEditingBolo(null);
+      setBoloForm({ type: 'person', mainInfo: '', additionalInfo: '', isArmed: false });
+      loadBolos();
+    } catch (error) {
+      toast.error('Ошибка', {
+        description: error instanceof Error ? error.message : 'Не удалось обновить ориентировку'
+      });
+    }
+  };
+
+  const handleDeleteBolo = async (id: number) => {
+    try {
+      const token = auth.getToken();
+      if (!token) return;
+      
+      await boloApi.delete(token, id);
+      toast.success('Ориентировка удалена');
+      loadBolos();
+    } catch (error) {
+      toast.error('Ошибка', {
+        description: error instanceof Error ? error.message : 'Не удалось удалить ориентировку'
+      });
+    }
+  };
+
+  const openBoloDialog = (bolo?: Bolo) => {
+    if (bolo) {
+      setEditingBolo(bolo);
+      setBoloForm({
+        type: bolo.type,
+        mainInfo: bolo.mainInfo,
+        additionalInfo: bolo.additionalInfo || '',
+        isArmed: bolo.isArmed
+      });
+    } else {
+      setEditingBolo(null);
+      setBoloForm({ type: 'person', mainInfo: '', additionalInfo: '', isArmed: false });
+    }
+    setShowBoloDialog(true);
   };
 
   const addNotification = (message: string, type: "info" | "warning" | "error") => {
@@ -422,6 +517,22 @@ const Index = () => {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      variant={activeTab === "bolo" ? "secondary" : "ghost"}
+                      className={activeTab === "bolo" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                      onClick={() => setActiveTab("bolo")}
+                      size="sm"
+                    >
+                      <Icon name="Search" size={16} className="md:mr-2" />
+                      <span className="hidden sm:inline">BOLO</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="sm:hidden">
+                    <p>BOLO</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
                       variant={activeTab === "profile" ? "secondary" : "ghost"}
                       className={activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
                       onClick={() => setActiveTab("profile")}
@@ -685,6 +796,155 @@ const Index = () => {
                 </Card>
               );
             })()}
+          </div>
+        )}
+
+        {activeTab === "bolo" && (
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-2xl md:text-3xl font-bold">BOLO</h2>
+              <Button onClick={() => openBoloDialog()}>
+                <Icon name="Plus" size={18} className="mr-2" />
+                Добавить ориентировку
+              </Button>
+            </div>
+
+            {bolosLoading ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Загрузка ориентировок...</p>
+              </div>
+            ) : bolos.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Icon name="FileSearch" size={48} className="text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium mb-2">Нет активных ориентировок</p>
+                  <p className="text-muted-foreground mb-4">Создайте первую ориентировку</p>
+                  <Button onClick={() => openBoloDialog()}>
+                    <Icon name="Plus" size={18} className="mr-2" />
+                    Добавить ориентировку
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {bolos.map((bolo) => (
+                  <Card key={bolo.id} className="relative">
+                    {bolo.isArmed && (
+                      <div className="absolute -top-2 -right-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg z-10">
+                        <Icon name="AlertTriangle" size={14} />
+                        Вооружен(а)
+                      </div>
+                    )}
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <Badge variant={bolo.type === 'person' ? 'default' : 'secondary'} className="mb-2">
+                            {bolo.type === 'person' ? 'Личность' : 'Транспортное средство'}
+                          </Badge>
+                          <CardTitle className="text-lg">{bolo.mainInfo}</CardTitle>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openBoloDialog(bolo)}
+                          >
+                            <Icon name="Pencil" size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteBolo(bolo.id)}
+                          >
+                            <Icon name="Trash2" size={16} />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {bolo.additionalInfo && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Дополнительные сведения</Label>
+                          <p className="text-sm mt-1">{bolo.additionalInfo}</p>
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground pt-2 border-t">
+                        <p>Создано: {new Date(bolo.createdAt).toLocaleString('ru-RU')}</p>
+                        {bolo.createdByName && <p>Автор: {bolo.createdByName}</p>}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            <Dialog open={showBoloDialog} onOpenChange={setShowBoloDialog}>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>{editingBolo ? 'Редактировать ориентировку' : 'Новая ориентировка'}</DialogTitle>
+                  <DialogDescription>
+                    Заполните информацию об объекте розыска
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Тип</Label>
+                    <Select
+                      value={boloForm.type}
+                      onValueChange={(value: 'person' | 'vehicle') => setBoloForm({ ...boloForm, type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="person">Личность</SelectItem>
+                        <SelectItem value="vehicle">Транспортное средство</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Основная информация *</Label>
+                    <Input
+                      placeholder="Краткое описание наиболее важных примет"
+                      value={boloForm.mainInfo}
+                      onChange={(e) => setBoloForm({ ...boloForm, mainInfo: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Дополнительные сведения</Label>
+                    <Input
+                      placeholder="Подробное описание подозреваемого или ТС"
+                      value={boloForm.additionalInfo}
+                      onChange={(e) => setBoloForm({ ...boloForm, additionalInfo: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="armed"
+                      checked={boloForm.isArmed}
+                      onCheckedChange={(checked) => setBoloForm({ ...boloForm, isArmed: checked as boolean })}
+                    />
+                    <label
+                      htmlFor="armed"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Имеется информация о наличии оружия
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowBoloDialog(false)}>
+                    Отмена
+                  </Button>
+                  <Button 
+                    onClick={editingBolo ? handleUpdateBolo : handleCreateBolo}
+                    disabled={!boloForm.mainInfo.trim()}
+                  >
+                    {editingBolo ? 'Сохранить' : 'Создать'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
 
