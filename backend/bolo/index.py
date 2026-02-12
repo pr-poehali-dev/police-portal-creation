@@ -1,5 +1,6 @@
 import json
 import os
+import hashlib
 import psycopg2
 from datetime import datetime
 
@@ -44,7 +45,15 @@ def handler(event: dict, context) -> dict:
         conn = psycopg2.connect(dsn)
         cursor = conn.cursor()
         
-        cursor.execute("SELECT user_id, role FROM users WHERE session_token = %s", (token,))
+        # Hash token and verify through sessions table
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        cursor.execute(
+            """SELECT u.id, u.role FROM users u
+               JOIN sessions s ON u.id = s.user_id
+               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
+            (token_hash,)
+        )
         user_data = cursor.fetchone()
         
         if not user_data:
@@ -119,8 +128,7 @@ def handler(event: dict, context) -> dict:
                     'isBase64Encoded': False
                 }
             
-            cursor.execute("SELECT id FROM users WHERE session_token = %s", (token,))
-            creator_id = cursor.fetchone()[0]
+            creator_id = user_id
             
             cursor.execute("""
                 INSERT INTO bolo (type, main_info, additional_info, is_armed, created_by)
