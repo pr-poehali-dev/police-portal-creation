@@ -22,7 +22,7 @@ export const boloApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
       throw new Error(error.error || 'Failed to fetch BOLOs');
     }
 
