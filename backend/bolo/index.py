@@ -3,6 +3,7 @@ import os
 import hashlib
 import psycopg2
 from datetime import datetime
+from security import sanitize_string
 
 def handler(event: dict, context) -> dict:
     '''API для управления ориентировками BOLO'''
@@ -104,8 +105,8 @@ def handler(event: dict, context) -> dict:
             data = json.loads(event.get('body', '{}'))
             
             bolo_type = data.get('type')
-            main_info = data.get('mainInfo', '').strip()
-            additional_info = data.get('additionalInfo', '').strip()
+            main_info = sanitize_string(data.get('mainInfo', '').strip(), 500)
+            additional_info = sanitize_string(data.get('additionalInfo', '').strip(), 1000)
             is_armed = data.get('isArmed', False)
             
             if not bolo_type or bolo_type not in ['person', 'vehicle']:
@@ -170,8 +171,8 @@ def handler(event: dict, context) -> dict:
                 }
             
             bolo_type = data.get('type')
-            main_info = data.get('mainInfo', '').strip()
-            additional_info = data.get('additionalInfo', '').strip()
+            main_info = sanitize_string(data.get('mainInfo', '').strip(), 500)
+            additional_info = sanitize_string(data.get('additionalInfo', '').strip(), 1000)
             is_armed = data.get('isArmed', False)
             
             if bolo_type and bolo_type not in ['person', 'vehicle']:

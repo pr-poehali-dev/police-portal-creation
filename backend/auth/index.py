@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from security import sanitize_string, sanitize_email, validate_password
 
 def handler(event: dict, context) -> dict:
     """API для регистрации и авторизации пользователей"""
@@ -91,23 +92,23 @@ def generate_token() -> str:
 
 def handle_register(body: dict) -> dict:
     """Регистрация нового пользователя"""
-    email = body.get('email', '').strip().lower()
-    password = body.get('password', '')
-    full_name = body.get('full_name', '').strip()
-    
-    if not email or not password or not full_name:
+    try:
+        email = sanitize_email(body.get('email', ''))
+        password = validate_password(body.get('password', ''))
+        full_name = sanitize_string(body.get('full_name', '').strip(), 100)
+        
+        if not email or not password or not full_name:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Email, password and full_name are required'}),
+                'isBase64Encoded': False
+            }
+    except ValueError as e:
         return {
             'statusCode': 400,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'Email, password and full_name are required'}),
-            'isBase64Encoded': False
-        }
-    
-    if len(password) < 6:
-        return {
-            'statusCode': 400,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'Password must be at least 6 characters'}),
+            'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
     
@@ -115,8 +116,7 @@ def handle_register(body: dict) -> dict:
     cur = conn.cursor()
     
     try:
-        email_escaped = email.replace("'", "''")
-        cur.execute(f"SELECT id FROM users WHERE email = '{email_escaped}'")
+        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
         if cur.fetchone():
             return {
                 'statusCode': 400,
@@ -126,30 +126,27 @@ def handle_register(body: dict) -> dict:
             }
         
         password_hash = hash_password(password)
-        full_name_escaped = full_name.replace("'", "''")
-        password_hash_escaped = password_hash.replace("'", "''")
         
         cur.execute(
-            f"""INSERT INTO users (email, password_hash, full_name)
-               VALUES ('{email_escaped}', '{password_hash_escaped}', '{full_name_escaped}') RETURNING id, email, full_name"""
+            "INSERT INTO users (email, password_hash, full_name) VALUES (%s, %s, %s) RETURNING id, email, full_name",
+            (email, password_hash, full_name)
         )
         user = cur.fetchone()
         user_id_internal = user['id']
         
         generated_user_id = str(user_id_internal).zfill(5)
-        cur.execute(
-            f"UPDATE users SET user_id = '{generated_user_id}' WHERE id = {user_id_internal}"
-        )
+        cur.execute("UPDATE users SET user_id = %s WHERE id = %s", (generated_user_id, user_id_internal))
         conn.commit()
         
         user['user_id'] = generated_user_id
         
         token = generate_token()
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+        expires_at = datetime.now() + timedelta(days=30)
         
         cur.execute(
-            f"INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ({user['id']}, '{token_hash}', '{expires_at}')"
+            "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
+            (user['id'], token_hash, expires_at)
         )
         conn.commit()
         
@@ -194,12 +191,14 @@ def handle_login(body: dict) -> dict:
         if login_input.isdigit() and len(login_input) <= 5:
             user_id = login_input.zfill(5)
             cur.execute(
-                f"SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE user_id = '{user_id}'"
+                "SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE user_id = %s",
+                (user_id,)
             )
         else:
-            email = login_input.lower().replace("'", "''")
+            email = login_input.lower()
             cur.execute(
-                f"SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE email = '{email}'"
+                "SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE email = %s",
+                (email,)
             )
         
         user = cur.fetchone()
@@ -222,15 +221,16 @@ def handle_login(body: dict) -> dict:
         
         token = generate_token()
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+        expires_at = datetime.now() + timedelta(days=30)
         
         cur.execute(
-            f"INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ({user['id']}, '{token_hash}', '{expires_at}')"
+            "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
+            (user['id'], token_hash, expires_at)
         )
         conn.commit()
         
         user_data = dict(user)
-        del user_data['password_hash']
+        user_data.pop('password_hash', None)
         
         return {
             'statusCode': 200,
@@ -270,10 +270,11 @@ def handle_verify(token: str) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cur.execute(
-            f"""SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.is_active
+            """SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.is_active
                FROM users u
                JOIN sessions s ON u.id = s.user_id
-               WHERE s.token_hash = '{token_hash}' AND s.expires_at > NOW()"""
+               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
+            (token_hash,)
         )
         user = cur.fetchone()
         
@@ -313,9 +314,17 @@ def handle_update_profile(body: dict, token: str) -> dict:
             'isBase64Encoded': False
         }
     
-    full_name = body.get('full_name', '').strip()
-    current_password = body.get('current_password', '')
-    new_password = body.get('new_password', '')
+    try:
+        full_name = sanitize_string(body.get('full_name', '').strip(), 100) if body.get('full_name') else None
+        current_password = body.get('current_password', '')
+        new_password = validate_password(body.get('new_password', '')) if body.get('new_password') else None
+    except ValueError as e:
+        return {
+            'statusCode': 400,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': str(e)}),
+            'isBase64Encoded': False
+        }
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -324,10 +333,11 @@ def handle_update_profile(body: dict, token: str) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cur.execute(
-            f"""SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.password_hash
+            """SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.password_hash
                FROM users u
                JOIN sessions s ON u.id = s.user_id
-               WHERE s.token_hash = '{token_hash}' AND s.expires_at > NOW()"""
+               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
+            (token_hash,)
         )
         user = cur.fetchone()
         
@@ -341,10 +351,11 @@ def handle_update_profile(body: dict, token: str) -> dict:
         
         user_id = user['id']
         updates = []
+        params = []
         
         if full_name:
-            full_name_escaped = full_name.replace("'", "''")
-            updates.append(f"full_name = '{full_name_escaped}'")
+            updates.append("full_name = %s")
+            params.append(full_name)
         
         if current_password and new_password:
             if not verify_password(current_password, user['password_hash']):
@@ -355,17 +366,9 @@ def handle_update_profile(body: dict, token: str) -> dict:
                     'isBase64Encoded': False
                 }
             
-            if len(new_password) < 6:
-                return {
-                    'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Новый пароль должен быть минимум 6 символов'}),
-                    'isBase64Encoded': False
-                }
-            
             password_hash = hash_password(new_password)
-            password_hash_escaped = password_hash.replace("'", "''")
-            updates.append(f"password_hash = '{password_hash_escaped}'")
+            updates.append("password_hash = %s")
+            params.append(password_hash)
         
         if not updates:
             return {
@@ -375,8 +378,9 @@ def handle_update_profile(body: dict, token: str) -> dict:
                 'isBase64Encoded': False
             }
         
-        update_query = f"UPDATE users SET {', '.join(updates)} WHERE id = {user_id} RETURNING id, user_id, email, full_name, role"
-        cur.execute(update_query)
+        params.append(user_id)
+        update_query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s RETURNING id, user_id, email, full_name, role"
+        cur.execute(update_query, params)
         updated_user = cur.fetchone()
         conn.commit()
         

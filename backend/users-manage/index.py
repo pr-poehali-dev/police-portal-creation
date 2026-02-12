@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from security import sanitize_string, sanitize_email, sanitize_user_id, validate_password, validate_role
 
 def hash_password(password: str) -> str:
     """Хеширование пароля с солью"""
@@ -30,21 +31,16 @@ def handler(event: dict, context) -> dict:
         }
     
     headers = event.get('headers', {})
-    print(f"DEBUG: All headers: {headers}")
     
     token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
     token = token.replace('Bearer ', '').replace('bearer ', '')
     
     if not token:
-        print(f"DEBUG: No token found. Checked keys: Authorization, authorization, X-Authorization, x-authorization")
         return error_response(401, 'Authentication required')
     
     current_user = verify_token(token)
     if not current_user:
-        print(f"DEBUG: Token verification failed for token: {token[:10]}...")
         return error_response(401, 'Invalid token')
-    
-    print(f"DEBUG: User {current_user.get('email')} with role {current_user.get('role')}")
     
     if current_user['role'] not in ['admin', 'manager']:
         return error_response(403, 'Access denied. Admin or Manager role required.')
@@ -78,12 +74,13 @@ def verify_token(token: str):
     try:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
-        query = f"""SELECT u.id, u.email, u.full_name, u.role, u.is_active
+        cur.execute(
+            """SELECT u.id, u.email, u.full_name, u.role, u.is_active
                FROM users u
                JOIN sessions s ON u.id = s.user_id
-               WHERE s.token_hash = '{token_hash}' AND s.expires_at > NOW()"""
-        
-        cur.execute(query)
+               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
+            (token_hash,)
+        )
         user = cur.fetchone()
         return dict(user) if user else None
     except Exception as e:
@@ -137,76 +134,85 @@ def update_user(event: dict, current_user: dict):
     action = body.get('action')
     user_id = body.get('user_id')
     
-    if not user_id:
-        return error_response(400, 'user_id is required')
+    if not user_id or not isinstance(user_id, int):
+        return error_response(400, 'Valid user_id is required')
     
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
         if action == 'activate':
-            query = f"UPDATE users SET is_active = true WHERE id = {user_id}"
-            cur.execute(query)
+            cur.execute("UPDATE users SET is_active = true WHERE id = %s", (user_id,))
             conn.commit()
             return success_response({'message': 'User activated successfully'})
         
         elif action == 'deactivate':
-            # Запрет на самоблокировку
-            if current_user['id'] == int(user_id):
+            if current_user['id'] == user_id:
                 return error_response(403, 'You cannot deactivate yourself')
             
-            query = f"UPDATE users SET is_active = false WHERE id = {user_id}"
-            cur.execute(query)
+            cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
             conn.commit()
             return success_response({'message': 'User deactivated successfully'})
         
         elif action == 'update':
             updates = []
+            params = []
             
-            if 'full_name' in body:
-                full_name = body['full_name'].replace("'", "''")
-                updates.append(f"full_name = '{full_name}'")
-            if 'role' in body:
-                new_role = body['role']
-                if new_role not in ['user', 'moderator', 'admin', 'manager']:
-                    return error_response(400, 'Invalid role')
+            try:
+                if 'full_name' in body:
+                    full_name = sanitize_string(body['full_name'], 100)
+                    updates.append("full_name = %s")
+                    params.append(full_name)
                 
-                # Менеджер не может назначать роль менеджера
-                if current_user['role'] == 'manager' and new_role == 'manager':
-                    return error_response(403, 'Managers cannot assign Manager role')
+                if 'role' in body:
+                    new_role = validate_role(body['role'])
+                    
+                    if current_user['role'] == 'manager' and new_role == 'manager':
+                        return error_response(403, 'Managers cannot assign Manager role')
+                    
+                    updates.append("role = %s")
+                    params.append(new_role)
                 
-                updates.append(f"role = '{new_role}'")
-            if 'email' in body:
-                email = body['email'].lower().replace("'", "''")
-                # Проверка уникальности email
-                cur.execute(f"SELECT id FROM users WHERE email = '{email}' AND id != {user_id}")
-                if cur.fetchone():
-                    return error_response(400, 'Email already exists')
-                updates.append(f"email = '{email}'")
-            if 'new_user_id' in body:
-                new_user_id = str(body['new_user_id']).strip().replace("'", "''")
-                if not new_user_id or len(new_user_id) == 0:
-                    return error_response(400, 'User ID cannot be empty')
+                if 'email' in body:
+                    email = sanitize_email(body['email'])
+                    
+                    cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (email, user_id))
+                    if cur.fetchone():
+                        return error_response(400, 'Email already exists')
+                    
+                    updates.append("email = %s")
+                    params.append(email)
                 
-                # Форматируем до 5 цифр с ведущими нулями (если это число)
-                if new_user_id.isdigit():
-                    new_user_id = new_user_id.zfill(5)
+                if 'new_user_id' in body:
+                    new_user_id = sanitize_user_id(str(body['new_user_id']).strip())
+                    
+                    if not new_user_id:
+                        return error_response(400, 'User ID cannot be empty')
+                    
+                    if new_user_id.isdigit():
+                        new_user_id = new_user_id.zfill(5)
+                    
+                    cur.execute("SELECT id FROM users WHERE user_id = %s AND id != %s", (new_user_id, user_id))
+                    if cur.fetchone():
+                        return error_response(400, 'User ID already exists')
+                    
+                    updates.append("user_id = %s")
+                    params.append(new_user_id)
                 
-                # Проверка уникальности user_id
-                cur.execute(f"SELECT id FROM users WHERE user_id = '{new_user_id}' AND id != {user_id}")
-                if cur.fetchone():
-                    return error_response(400, 'User ID already exists')
-                updates.append(f"user_id = '{new_user_id}'")
-            if 'password' in body:
-                # Сброс пароля
-                password_hash = hash_password(body['password'])
-                password_hash_escaped = password_hash.replace("'", "''")
-                updates.append(f"password_hash = '{password_hash_escaped}'")
+                if 'password' in body:
+                    password = validate_password(body['password'])
+                    password_hash = hash_password(password)
+                    updates.append("password_hash = %s")
+                    params.append(password_hash)
+                
+            except ValueError as e:
+                return error_response(400, str(e))
             
             if updates:
                 updates.append("updated_at = NOW()")
-                query = f"UPDATE users SET {', '.join(updates)} WHERE id = {user_id}"
-                cur.execute(query)
+                params.append(user_id)
+                query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
+                cur.execute(query, params)
                 conn.commit()
                 return success_response({'message': 'User updated successfully'})
             else:
@@ -233,16 +239,20 @@ def delete_user(event: dict, current_user: dict):
     if not user_id:
         return error_response(400, 'user_id is required')
     
-    # Запрет на самоудаление
-    if current_user['id'] == int(user_id):
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return error_response(400, 'Invalid user_id format')
+    
+    if current_user['id'] == user_id:
         return error_response(403, 'You cannot delete yourself')
     
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        cur.execute(f"DELETE FROM sessions WHERE user_id = {user_id}")
-        cur.execute(f"DELETE FROM users WHERE id = {user_id}")
+        cur.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
         
         return success_response({'message': 'User deleted successfully'})

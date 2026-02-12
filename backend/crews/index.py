@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from security import sanitize_string
 
 def handler(event: dict, context) -> dict:
     """API для управления экипажами"""
@@ -131,8 +132,8 @@ def get_crews(event: dict, current_user: dict):
 def create_crew(event: dict, current_user: dict):
     """Создать новый экипаж"""
     body = json.loads(event.get('body', '{}'))
-    callsign = body.get('callsign', '').strip()
-    location = body.get('location', '').strip()
+    callsign = sanitize_string(body.get('callsign', '').strip(), 50)
+    location = sanitize_string(body.get('location', '').strip(), 200)
     second_member_id = body.get('second_member_id')
     
     if not callsign:
@@ -218,7 +219,7 @@ def update_crew(event: dict, current_user: dict):
             return success_response({'message': 'Status updated successfully'})
         
         elif action == 'update_location':
-            new_location = body.get('location', '').strip()
+            new_location = sanitize_string(body.get('location', '').strip(), 200)
             cur.execute(
                 "UPDATE crews SET location = %s, updated_at = NOW() WHERE id = %s",
                 (new_location, crew_id)
