@@ -171,14 +171,6 @@ def update_user(event: dict, current_user: dict):
                 if new_role not in ['user', 'moderator', 'admin', 'manager']:
                     return error_response(400, 'Invalid role')
                 
-                # Менеджер не может назначать менеджеров и администраторов
-                if current_user['role'] == 'manager' and new_role in ['manager', 'admin']:
-                    return error_response(403, 'Managers cannot assign Manager or Admin roles')
-                
-                # Администратор не может назначать менеджеров
-                if current_user['role'] == 'admin' and new_role == 'manager':
-                    return error_response(403, 'Admins cannot assign Manager role')
-                
                 updates.append(f"role = '{new_role}'")
             if 'email' in body:
                 email = body['email'].lower().replace("'", "''")
@@ -227,9 +219,9 @@ def update_user(event: dict, current_user: dict):
         conn.close()
 
 def delete_user(event: dict, current_user: dict):
-    """Удаление пользователя (только для admin)"""
-    if current_user['role'] != 'admin':
-        return error_response(403, 'Only admin can delete users')
+    """Удаление пользователя (для admin и manager)"""
+    if current_user['role'] not in ['admin', 'manager']:
+        return error_response(403, 'Only admin or manager can delete users')
     
     params = event.get('queryStringParameters') or {}
     user_id = params.get('user_id')
