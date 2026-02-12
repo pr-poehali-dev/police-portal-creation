@@ -17,7 +17,8 @@ def handler(event: dict, context) -> dict:
                 'Access-Control-Allow-Headers': 'Content-Type, X-Authorization, X-Cookie',
                 'Access-Control-Max-Age': '86400'
             },
-            'body': ''
+            'body': '',
+            'isBase64Encoded': False
         }
     
     try:
@@ -26,7 +27,8 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 500,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'DATABASE_URL not configured'})
+                'body': json.dumps({'error': 'DATABASE_URL not configured'}),
+                'isBase64Encoded': False
             }
         
         token = event.get('headers', {}).get('X-Authorization', '').replace('Bearer ', '')
@@ -35,7 +37,8 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 401,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Unauthorized'})
+                'body': json.dumps({'error': 'Unauthorized'}),
+                'isBase64Encoded': False
             }
         
         conn = psycopg2.connect(dsn)
@@ -50,7 +53,8 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 401,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Invalid token'})
+                'body': json.dumps({'error': 'Invalid token'}),
+                'isBase64Encoded': False
             }
         
         user_id, role = user_data
@@ -83,7 +87,8 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps(bolos)
+                'body': json.dumps(bolos),
+                'isBase64Encoded': False
             }
         
         elif method == 'POST':
@@ -100,7 +105,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid type'})
+                    'body': json.dumps({'error': 'Invalid type'}),
+                    'isBase64Encoded': False
                 }
             
             if not main_info:
@@ -109,7 +115,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Main info is required'})
+                    'body': json.dumps({'error': 'Main info is required'}),
+                    'isBase64Encoded': False
                 }
             
             cursor.execute("SELECT id FROM users WHERE session_token = %s", (token,))
@@ -136,7 +143,8 @@ def handler(event: dict, context) -> dict:
                     'additionalInfo': additional_info,
                     'isArmed': is_armed,
                     'createdAt': created_at.isoformat()
-                })
+                }),
+                'isBase64Encoded': False
             }
         
         elif method == 'PUT':
@@ -149,7 +157,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'BOLO ID is required'})
+                    'body': json.dumps({'error': 'BOLO ID is required'}),
+                    'isBase64Encoded': False
                 }
             
             bolo_type = data.get('type')
@@ -163,7 +172,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid type'})
+                    'body': json.dumps({'error': 'Invalid type'}),
+                    'isBase64Encoded': False
                 }
             
             cursor.execute("""
@@ -183,7 +193,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 404,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'BOLO not found'})
+                    'body': json.dumps({'error': 'BOLO not found'}),
+                    'isBase64Encoded': False
                 }
             
             conn.commit()
@@ -193,7 +204,8 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True})
+                'body': json.dumps({'success': True}),
+                'isBase64Encoded': False
             }
         
         elif method == 'DELETE':
@@ -206,7 +218,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'BOLO ID is required'})
+                    'body': json.dumps({'error': 'BOLO ID is required'}),
+                    'isBase64Encoded': False
                 }
             
             cursor.execute("DELETE FROM bolo WHERE id = %s RETURNING id", (bolo_id,))
@@ -217,7 +230,8 @@ def handler(event: dict, context) -> dict:
                 return {
                     'statusCode': 404,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'BOLO not found'})
+                    'body': json.dumps({'error': 'BOLO not found'}),
+                    'isBase64Encoded': False
                 }
             
             conn.commit()
@@ -227,7 +241,8 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'success': True})
+                'body': json.dumps({'success': True}),
+                'isBase64Encoded': False
             }
         
         else:
@@ -236,12 +251,14 @@ def handler(event: dict, context) -> dict:
             return {
                 'statusCode': 405,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Method not allowed'})
+                'body': json.dumps({'error': 'Method not allowed'}),
+                'isBase64Encoded': False
             }
     
     except Exception as e:
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': str(e)}),
+            'isBase64Encoded': False
         }
