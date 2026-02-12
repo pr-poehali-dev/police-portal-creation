@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "Get crews without auth",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create crew without auth",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "callsign": "L-1",
+        "location": "Test location"
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

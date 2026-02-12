@@ -1,0 +1,289 @@
+import json
+import os
+import hashlib
+from datetime import datetime
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+def handler(event: dict, context) -> dict:
+    """API для управления экипажами"""
+    method = event.get('httpMethod', 'GET')
+    
+    if method == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, X-Authorization',
+                'Access-Control-Max-Age': '86400'
+            },
+            'body': '',
+            'isBase64Encoded': False
+        }
+    
+    headers = event.get('headers', {})
+    token = headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    token = token.replace('Bearer ', '').replace('bearer ', '')
+    
+    if not token:
+        return error_response(401, 'Authentication required')
+    
+    current_user = verify_token(token)
+    if not current_user:
+        return error_response(401, 'Invalid token')
+    
+    try:
+        if method == 'GET':
+            return get_crews(event, current_user)
+        elif method == 'POST':
+            return create_crew(event, current_user)
+        elif method == 'PUT':
+            return update_crew(event, current_user)
+        elif method == 'DELETE':
+            return delete_crew(event, current_user)
+        else:
+            return error_response(405, 'Method not allowed')
+    except Exception as e:
+        return error_response(500, str(e))
+
+def get_db_connection():
+    """Создание подключения к БД"""
+    dsn = os.environ.get('DATABASE_URL')
+    return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
+
+def verify_token(token: str):
+    """Проверка токена и получение данных пользователя"""
+    if not token:
+        return None
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        cur.execute(
+            """SELECT u.id, u.email, u.full_name, u.role, u.is_active, u.user_id
+               FROM users u
+               JOIN sessions s ON u.id = s.user_id
+               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
+            (token_hash,)
+        )
+        user = cur.fetchone()
+        return dict(user) if user else None
+    finally:
+        cur.close()
+        conn.close()
+
+def can_manage_crew(current_user: dict, crew_creator_id: int, crew_members: list) -> bool:
+    """Проверка прав на управление экипажем"""
+    if current_user['role'] in ['moderator', 'admin', 'manager']:
+        return True
+    
+    if crew_creator_id == current_user['id']:
+        return True
+    
+    if current_user['id'] in crew_members:
+        return True
+    
+    return False
+
+def get_crews(event: dict, current_user: dict):
+    """Получить список экипажей"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute(
+            """SELECT c.id, c.callsign, c.location, c.status, c.creator_id, c.created_at, c.updated_at,
+                      COALESCE(
+                          json_agg(
+                              json_build_object(
+                                  'user_id', u.id,
+                                  'user_id_str', u.user_id,
+                                  'full_name', u.full_name,
+                                  'email', u.email
+                              )
+                          ) FILTER (WHERE u.id IS NOT NULL),
+                          '[]'::json
+                      ) as members
+               FROM crews c
+               LEFT JOIN crew_members cm ON c.id = cm.crew_id
+               LEFT JOIN users u ON cm.user_id = u.id
+               GROUP BY c.id
+               ORDER BY c.created_at DESC"""
+        )
+        crews = cur.fetchall()
+        
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({
+                'crews': [dict(crew) for crew in crews]
+            }, default=str),
+            'isBase64Encoded': False
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+def create_crew(event: dict, current_user: dict):
+    """Создать новый экипаж"""
+    body = json.loads(event.get('body', '{}'))
+    callsign = body.get('callsign', '').strip()
+    location = body.get('location', '').strip()
+    second_member_id = body.get('second_member_id')
+    
+    if not callsign:
+        return error_response(400, 'Callsign is required')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        if second_member_id:
+            cur.execute("SELECT id FROM crew_members WHERE user_id = %s", (second_member_id,))
+            if cur.fetchone():
+                return error_response(400, 'Selected user is already in a crew')
+        
+        cur.execute("SELECT id FROM crew_members WHERE user_id = %s", (current_user['id'],))
+        if cur.fetchone():
+            return error_response(400, 'You are already in a crew')
+        
+        cur.execute(
+            """INSERT INTO crews (callsign, location, status, creator_id)
+               VALUES (%s, %s, 'active', %s) RETURNING id""",
+            (callsign, location, current_user['id'])
+        )
+        crew_id = cur.fetchone()['id']
+        
+        cur.execute(
+            "INSERT INTO crew_members (crew_id, user_id) VALUES (%s, %s)",
+            (crew_id, current_user['id'])
+        )
+        
+        if second_member_id:
+            cur.execute(
+                "INSERT INTO crew_members (crew_id, user_id) VALUES (%s, %s)",
+                (crew_id, second_member_id)
+            )
+        
+        conn.commit()
+        
+        return success_response({'message': 'Crew created successfully', 'crew_id': crew_id})
+    finally:
+        cur.close()
+        conn.close()
+
+def update_crew(event: dict, current_user: dict):
+    """Обновить экипаж"""
+    body = json.loads(event.get('body', '{}'))
+    crew_id = body.get('crew_id')
+    action = body.get('action')
+    
+    if not crew_id:
+        return error_response(400, 'crew_id is required')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute(
+            """SELECT c.creator_id, ARRAY_AGG(cm.user_id) as member_ids
+               FROM crews c
+               LEFT JOIN crew_members cm ON c.id = cm.crew_id
+               WHERE c.id = %s
+               GROUP BY c.id, c.creator_id""",
+            (crew_id,)
+        )
+        crew_data = cur.fetchone()
+        
+        if not crew_data:
+            return error_response(404, 'Crew not found')
+        
+        if not can_manage_crew(current_user, crew_data['creator_id'], crew_data['member_ids'] or []):
+            return error_response(403, 'Access denied')
+        
+        if action == 'update_status':
+            new_status = body.get('status')
+            if new_status not in ['active', 'patrol', 'responding', 'offline']:
+                return error_response(400, 'Invalid status')
+            
+            cur.execute(
+                "UPDATE crews SET status = %s, updated_at = NOW() WHERE id = %s",
+                (new_status, crew_id)
+            )
+            conn.commit()
+            return success_response({'message': 'Status updated successfully'})
+        
+        elif action == 'update_location':
+            new_location = body.get('location', '').strip()
+            cur.execute(
+                "UPDATE crews SET location = %s, updated_at = NOW() WHERE id = %s",
+                (new_location, crew_id)
+            )
+            conn.commit()
+            return success_response({'message': 'Location updated successfully'})
+        
+        else:
+            return error_response(400, 'Invalid action')
+    
+    finally:
+        cur.close()
+        conn.close()
+
+def delete_crew(event: dict, current_user: dict):
+    """Удалить экипаж"""
+    params = event.get('queryStringParameters') or {}
+    crew_id = params.get('crew_id')
+    
+    if not crew_id:
+        return error_response(400, 'crew_id is required')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute(
+            """SELECT c.creator_id, ARRAY_AGG(cm.user_id) as member_ids
+               FROM crews c
+               LEFT JOIN crew_members cm ON c.id = cm.crew_id
+               WHERE c.id = %s
+               GROUP BY c.id, c.creator_id""",
+            (crew_id,)
+        )
+        crew_data = cur.fetchone()
+        
+        if not crew_data:
+            return error_response(404, 'Crew not found')
+        
+        if not can_manage_crew(current_user, crew_data['creator_id'], crew_data['member_ids'] or []):
+            return error_response(403, 'Access denied')
+        
+        cur.execute("DELETE FROM crew_members WHERE crew_id = %s", (crew_id,))
+        cur.execute("DELETE FROM crews WHERE id = %s", (crew_id,))
+        conn.commit()
+        
+        return success_response({'message': 'Crew deleted successfully'})
+    finally:
+        cur.close()
+        conn.close()
+
+def error_response(status_code: int, message: str):
+    """Формирование ответа с ошибкой"""
+    return {
+        'statusCode': status_code,
+        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+        'body': json.dumps({'error': message}),
+        'isBase64Encoded': False
+    }
+
+def success_response(data: dict):
+    """Формирование успешного ответа"""
+    return {
+        'statusCode': 200,
+        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+        'body': json.dumps(data),
+        'isBase64Encoded': False
+    }

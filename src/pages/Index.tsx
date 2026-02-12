@@ -14,17 +14,9 @@ import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
 import { auth, User } from "@/lib/auth";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { crewsApi, Crew as ApiCrew } from "@/lib/crews-api";
 
 type CrewStatus = "active" | "patrol" | "responding" | "offline";
-
-interface Crew {
-  id: string;
-  callSign: string;
-  location: string;
-  status: CrewStatus;
-  officers: string[];
-  lastUpdate: string;
-}
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -36,32 +28,14 @@ const Index = () => {
   );
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [crews, setCrews] = useState<Crew[]>([
-    {
-      id: "1",
-      callSign: "А-101",
-      location: "Центральный район, ул. Ленина",
-      status: "patrol",
-      officers: ["Иванов И.И.", "Петров П.П."],
-      lastUpdate: "2 мин назад"
-    },
-    {
-      id: "2",
-      callSign: "Б-205",
-      location: "Северный район, пр. Мира",
-      status: "active",
-      officers: ["Сидоров С.С.", "Козлов К.К."],
-      lastUpdate: "5 мин назад"
-    },
-    {
-      id: "3",
-      callSign: "В-312",
-      location: "Южный район, ул. Победы",
-      status: "responding",
-      officers: ["Морозов М.М.", "Новиков Н.Н."],
-      lastUpdate: "1 мин назад"
-    }
-  ]);
+  const [crews, setCrews] = useState<ApiCrew[]>([]);
+  const [crewsLoading, setCrewsLoading] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<{ id: number; user_id: string; full_name: string; email: string }[]>([]);
+  const [createForm, setCreateForm] = useState({
+    callsign: '',
+    location: '',
+    second_member_id: null as number | null
+  });
 
   const [notifications, setNotifications] = useState([
     { id: "1", message: "Экипаж В-312 изменил статус на 'Задержка на ситуации'", time: "1 мин назад", type: "warning" },
@@ -92,6 +66,40 @@ const Index = () => {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadCrews();
+    }
+  }, [isAuthenticated]);
+
+  const loadCrews = async () => {
+    try {
+      setCrewsLoading(true);
+      const token = auth.getToken();
+      if (!token) return;
+      
+      const data = await crewsApi.getCrews(token);
+      setCrews(data);
+    } catch (error) {
+      console.error('Failed to load crews:', error);
+      toast.error('Ошибка загрузки экипажей');
+    } finally {
+      setCrewsLoading(false);
+    }
+  };
+
+  const loadAvailableUsers = async () => {
+    try {
+      const token = auth.getToken();
+      if (!token) return;
+      
+      const users = await crewsApi.getAvailableUsers(token);
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error('Failed to load available users:', error);
+    }
+  };
+
   const addNotification = (message: string, type: "info" | "warning" | "error") => {
     const newNotif = {
       id: String(Date.now()),
@@ -106,34 +114,78 @@ const Index = () => {
     audio.play().catch(() => {});
   };
 
-  const handleCreateCrew = () => {
-    const newCrew: Crew = {
-      id: String(crews.length + 1),
-      callSign: "Г-" + (400 + crews.length),
-      location: "Новое местоположение",
-      status: "active",
-      officers: ["Новый сотрудник"],
-      lastUpdate: "только что"
-    };
-    setCrews([...crews, newCrew]);
-    setShowCreateDialog(false);
-    toast.success("Экипаж успешно создан", {
-      description: `Позывной: ${newCrew.callSign}`
-    });
+  const handleCreateCrew = async () => {
+    try {
+      const token = auth.getToken();
+      if (!token) return;
+      
+      await crewsApi.createCrew(token, {
+        callsign: createForm.callsign,
+        location: createForm.location,
+        second_member_id: createForm.second_member_id || undefined
+      });
+      
+      toast.success("Экипаж успешно создан", {
+        description: `Позывной: ${createForm.callsign}`
+      });
+      
+      setShowCreateDialog(false);
+      setCreateForm({ callsign: '', location: '', second_member_id: null });
+      loadCrews();
+    } catch (error) {
+      toast.error('Ошибка создания', {
+        description: error instanceof Error ? error.message : 'Не удалось создать экипаж'
+      });
+    }
   };
 
-  const handleStatusChange = (crewId: string, newStatus: CrewStatus) => {
-    setCrews(crews.map(crew => 
-      crew.id === crewId ? { ...crew, status: newStatus, lastUpdate: "только что" } : crew
-    ));
-    const crew = crews.find(c => c.id === crewId);
-    const notifMessage = `Экипаж ${crew?.callSign} изменил статус на '${statusConfig[newStatus].label}'`;
+  const handleStatusChange = async (crewId: number, newStatus: CrewStatus) => {
+    try {
+      const token = auth.getToken();
+      if (!token) return;
+      
+      await crewsApi.updateCrewStatus(token, crewId, newStatus);
+      
+      const crew = crews.find(c => c.id === crewId);
+      const notifMessage = `Экипаж ${crew?.callsign} изменил статус на '${statusConfig[newStatus].label}'`;
+      
+      addNotification(notifMessage, newStatus === "offline" ? "error" : newStatus === "responding" ? "warning" : "info");
+      
+      toast.info("Статус обновлен", {
+        description: `Экипаж ${crew?.callsign} → ${statusConfig[newStatus].label}`
+      });
+      
+      loadCrews();
+    } catch (error) {
+      toast.error('Ошибка', {
+        description: error instanceof Error ? error.message : 'Не удалось обновить статус'
+      });
+    }
+  };
+
+  const handleDeleteCrew = async (crewId: number) => {
+    if (!confirm('Удалить экипаж?')) return;
     
-    addNotification(notifMessage, newStatus === "offline" ? "error" : newStatus === "responding" ? "warning" : "info");
-    
-    toast.info("Статус обновлен", {
-      description: `Экипаж ${crew?.callSign} → ${statusConfig[newStatus].label}`
-    });
+    try {
+      const token = auth.getToken();
+      if (!token) return;
+      
+      await crewsApi.deleteCrew(token, crewId);
+      toast.success('Экипаж удалён');
+      loadCrews();
+    } catch (error) {
+      toast.error('Ошибка', {
+        description: error instanceof Error ? error.message : 'Не удалось удалить экипаж'
+      });
+    }
+  };
+
+  const canManageCrew = (crew: ApiCrew) => {
+    if (!user) return false;
+    if (['moderator', 'admin', 'manager'].includes(user.role || '')) return true;
+    if (crew.creator_id === user.id) return true;
+    if (crew.members.some(m => m.user_id === user.id)) return true;
+    return false;
   };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -638,7 +690,10 @@ const Index = () => {
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-0 mb-4 md:mb-6">
           <h2 className="text-xl md:text-2xl font-bold">Активные экипажи</h2>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <Dialog open={showCreateDialog} onOpenChange={(open) => {
+            setShowCreateDialog(open);
+            if (open) loadAvailableUsers();
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2 w-full sm:w-auto">
                 <Icon name="Plus" size={18} />
@@ -655,36 +710,50 @@ const Index = () => {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="callsign">Позывной</Label>
-                  <Input id="callsign" placeholder="А-101" />
+                  <Input 
+                    id="callsign" 
+                    placeholder="L-1" 
+                    value={createForm.callsign}
+                    onChange={(e) => setCreateForm({...createForm, callsign: e.target.value})}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="location">Местоположение</Label>
-                  <Input id="location" placeholder="Центральный район, ул. Ленина" />
+                  <Input 
+                    id="location" 
+                    placeholder="Центральный район, ул. Ленина"
+                    value={createForm.location}
+                    onChange={(e) => setCreateForm({...createForm, location: e.target.value})}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="status">Статус</Label>
-                  <Select defaultValue="active">
-                    <SelectTrigger>
-                      <SelectValue />
+                  <Label htmlFor="second-member">Второй участник (необязательно)</Label>
+                  <Select 
+                    value={createForm.second_member_id?.toString() || 'none'} 
+                    onValueChange={(value) => setCreateForm({...createForm, second_member_id: value === 'none' ? null : parseInt(value)})}
+                  >
+                    <SelectTrigger id="second-member">
+                      <SelectValue placeholder="Выберите пользователя" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Доступен</SelectItem>
-                      <SelectItem value="patrol">Занят</SelectItem>
-                      <SelectItem value="responding">Задержка на ситуации</SelectItem>
-                      <SelectItem value="offline">Требуется поддержка</SelectItem>
+                      <SelectItem value="none">Без второго участника</SelectItem>
+                      {availableUsers.filter(u => u.id !== user?.id).map((u) => (
+                        <SelectItem key={u.id} value={u.id.toString()}>
+                          {u.full_name} (ID: {u.user_id})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="officers">Состав экипажа</Label>
-                  <Input id="officers" placeholder="Иванов И.И., Петров П.П." />
+                  <p className="text-xs text-muted-foreground">
+                    Вы автоматически добавитесь в экипаж как создатель
+                  </p>
                 </div>
               </div>
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                   Отмена
                 </Button>
-                <Button onClick={handleCreateCrew}>
+                <Button onClick={handleCreateCrew} disabled={!createForm.callsign}>
                   Создать
                 </Button>
               </div>
@@ -693,18 +762,37 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-          {crews.map((crew) => (
+          {crewsLoading ? (
+            <div className="col-span-full text-center py-8 text-muted-foreground">Загрузка экипажей...</div>
+          ) : crews.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-muted-foreground">
+              <p>Нет активных экипажей</p>
+              <p className="text-sm mt-2">Создайте первый экипаж</p>
+            </div>
+          ) : crews.map((crew) => (
             <Card key={crew.id} className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl mb-2">{crew.callSign}</CardTitle>
+                  <div className="flex-1">
+                    <CardTitle className="text-xl mb-2">{crew.callsign}</CardTitle>
                     <CardDescription className="flex items-center gap-2">
                       <Icon name="MapPin" size={14} />
-                      {crew.location}
+                      {crew.location || 'Местоположение не указано'}
                     </CardDescription>
                   </div>
-                  <div className={`w-3 h-3 rounded-full ${statusConfig[crew.status].color} animate-pulse-soft`} />
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${statusConfig[crew.status].color} animate-pulse-soft`} />
+                    {canManageCrew(crew) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleDeleteCrew(crew.id)}
+                      >
+                        <Icon name="Trash2" size={16} />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -713,62 +801,63 @@ const Index = () => {
                     <Icon name={statusConfig[crew.status].icon} size={14} />
                     {statusConfig[crew.status].label}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">{crew.lastUpdate}</span>
                 </div>
 
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Состав:</p>
                   <div className="flex flex-col gap-1">
-                    {crew.officers.map((officer, idx) => (
+                    {crew.members.map((member, idx) => (
                       <div key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Icon name="User" size={14} />
-                        {officer}
+                        {member.full_name}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="pt-2 border-t space-y-2">
-                  <Label className="text-xs">Изменить статус:</Label>
-                  <div className="grid grid-cols-2 gap-2 text-xs md:text-sm">
-                    <Button 
-                      size="sm" 
-                      variant={crew.status === "active" ? "default" : "outline"}
-                      onClick={() => handleStatusChange(crew.id, "active")}
-                      className={`gap-1 ${crew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
-                    >
-                      <Icon name="CheckCircle" size={14} />
-                      Доступен
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant={crew.status === "patrol" ? "default" : "outline"}
-                      onClick={() => handleStatusChange(crew.id, "patrol")}
-                      className={`gap-1 ${crew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
-                    >
-                      <Icon name="Clock" size={14} />
-                      Занят
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant={crew.status === "responding" ? "default" : "outline"}
-                      onClick={() => handleStatusChange(crew.id, "responding")}
-                      className={`gap-1 ${crew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
-                    >
-                      <Icon name="AlertTriangle" size={14} />
-                      Задержка
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant={crew.status === "offline" ? "default" : "outline"}
-                      onClick={() => handleStatusChange(crew.id, "offline")}
-                      className={`gap-1 ${crew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
-                    >
-                      <Icon name="AlertOctagon" size={14} />
-                      Поддержка
-                    </Button>
+                {canManageCrew(crew) && (
+                  <div className="pt-2 border-t space-y-2">
+                    <Label className="text-xs">Изменить статус:</Label>
+                    <div className="grid grid-cols-2 gap-2 text-xs md:text-sm">
+                      <Button 
+                        size="sm" 
+                        variant={crew.status === "active" ? "default" : "outline"}
+                        onClick={() => handleStatusChange(crew.id, "active")}
+                        className={`gap-1 ${crew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                      >
+                        <Icon name="CheckCircle" size={14} />
+                        Доступен
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={crew.status === "patrol" ? "default" : "outline"}
+                        onClick={() => handleStatusChange(crew.id, "patrol")}
+                        className={`gap-1 ${crew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
+                      >
+                        <Icon name="Clock" size={14} />
+                        Занят
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={crew.status === "responding" ? "default" : "outline"}
+                        onClick={() => handleStatusChange(crew.id, "responding")}
+                        className={`gap-1 ${crew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                      >
+                        <Icon name="AlertTriangle" size={14} />
+                        Задержка
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={crew.status === "offline" ? "default" : "outline"}
+                        onClick={() => handleStatusChange(crew.id, "offline")}
+                        className={`gap-1 ${crew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
+                      >
+                        <Icon name="AlertOctagon" size={14} />
+                        Поддержка
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}
