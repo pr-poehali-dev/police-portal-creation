@@ -2,6 +2,7 @@ import json
 import os
 import hashlib
 import secrets
+import bcrypt
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -74,18 +75,20 @@ def get_db_connection():
     return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
 
 def hash_password(password: str) -> str:
-    """Хеширование пароля с солью"""
-    salt = secrets.token_hex(16)
-    pwd_hash = hashlib.sha512((password + salt).encode()).hexdigest()
-    return f"{salt}${pwd_hash}"
+    """Хеширование пароля с использованием bcrypt"""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    """Проверка пароля"""
+    """Проверка пароля с использованием bcrypt"""
     try:
-        salt, pwd_hash = stored_hash.split('$')
-        computed_hash = hashlib.sha512((password + salt).encode()).hexdigest()
-        return computed_hash == pwd_hash
+        password_bytes = password.encode('utf-8')
+        stored_hash_bytes = stored_hash.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, stored_hash_bytes)
     except Exception as e:
+        print(f"Password verification error: {str(e)}")
         return False
 
 def generate_token() -> str:
