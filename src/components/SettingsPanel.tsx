@@ -15,7 +15,10 @@ import { auth } from "@/lib/auth";
 export function SettingsPanel() {
   const [users, setUsers] = useState<UserManagement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('user');
   const [editingUser, setEditingUser] = useState<UserManagement | null>(null);
+  const [activatingUser, setActivatingUser] = useState<UserManagement | null>(null);
+  const [activationRole, setActivationRole] = useState<string>('user');
   const [editForm, setEditForm] = useState({
     full_name: '',
     role: 'user'
@@ -23,6 +26,10 @@ export function SettingsPanel() {
 
   useEffect(() => {
     loadUsers();
+    const storedUser = auth.getStoredUser();
+    if (storedUser?.role) {
+      setCurrentUserRole(storedUser.role);
+    }
   }, []);
 
   const loadUsers = async () => {
@@ -42,18 +49,47 @@ export function SettingsPanel() {
     }
   };
 
-  const handleActivate = async (userId: number) => {
+  const handleActivate = async () => {
+    if (!activatingUser) return;
+    
     try {
       const token = auth.getToken();
       if (!token) return;
       
-      await usersApi.activateUser(token, userId);
-      toast.success('Пользователь активирован');
+      await usersApi.activateUser(token, activatingUser.id);
+      if (activationRole !== 'user') {
+        await usersApi.updateUser(token, activatingUser.id, { role: activationRole });
+      }
+      
+      toast.success('Пользователь активирован', {
+        description: `Роль: ${getRoleName(activationRole)}`
+      });
+      setActivatingUser(null);
+      setActivationRole('user');
       loadUsers();
     } catch (error) {
       toast.error('Ошибка', {
         description: error instanceof Error ? error.message : 'Не удалось активировать'
       });
+    }
+  };
+
+  const getAvailableRoles = (forEdit: boolean = false) => {
+    if (currentUserRole === 'manager') {
+      return ['user', 'moderator', 'admin'];
+    }
+    if (currentUserRole === 'admin') {
+      return ['user', 'moderator'];
+    }
+    return ['user'];
+  };
+
+  const getRoleName = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Администратор';
+      case 'manager': return 'Менеджер';
+      case 'moderator': return 'Модератор';
+      default: return 'Пользователь';
     }
   };
 
@@ -223,7 +259,10 @@ export function SettingsPanel() {
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => handleActivate(user.id)}
+                        onClick={() => {
+                          setActivatingUser(user);
+                          setActivationRole('user');
+                        }}
                       >
                         <Icon name="CheckCircle" size={16} className="mr-1" />
                         Активировать
@@ -269,17 +308,81 @@ export function SettingsPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">Пользователь</SelectItem>
-                  <SelectItem value="moderator">Модератор</SelectItem>
-                  <SelectItem value="manager">Менеджер</SelectItem>
-                  <SelectItem value="admin">Администратор</SelectItem>
+                  {getAvailableRoles().includes('moderator') && (
+                    <SelectItem value="moderator">Модератор</SelectItem>
+                  )}
+                  {getAvailableRoles().includes('admin') && (
+                    <SelectItem value="admin">Администратор</SelectItem>
+                  )}
+                  {currentUserRole === 'manager' && (
+                    <SelectItem value="manager">Менеджер</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {currentUserRole === 'admin' && (
+                <p className="text-xs text-muted-foreground">
+                  Администратор может назначать роли до Модератора
+                </p>
+              )}
+              {currentUserRole === 'manager' && (
+                <p className="text-xs text-muted-foreground">
+                  Менеджер может назначать роли до Администратора
+                </p>
+              )}
             </div>
             <div className="flex gap-2 pt-4">
               <Button onClick={handleSaveEdit} className="flex-1">
                 Сохранить
               </Button>
               <Button variant="outline" onClick={() => setEditingUser(null)} className="flex-1">
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!activatingUser} onOpenChange={(open) => !open && setActivatingUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Активация пользователя</DialogTitle>
+            <DialogDescription>
+              {activatingUser?.full_name} (ID: {activatingUser?.user_id})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="activation-role">Назначить роль</Label>
+              <Select value={activationRole} onValueChange={setActivationRole}>
+                <SelectTrigger id="activation-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Пользователь</SelectItem>
+                  {getAvailableRoles().includes('moderator') && (
+                    <SelectItem value="moderator">Модератор</SelectItem>
+                  )}
+                  {getAvailableRoles().includes('admin') && (
+                    <SelectItem value="admin">Администратор</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {currentUserRole === 'admin' && (
+                <p className="text-xs text-muted-foreground">
+                  Вы можете назначить роль до Модератора
+                </p>
+              )}
+              {currentUserRole === 'manager' && (
+                <p className="text-xs text-muted-foreground">
+                  Вы можете назначить роль до Администратора
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleActivate} className="flex-1">
+                Активировать
+              </Button>
+              <Button variant="outline" onClick={() => setActivatingUser(null)} className="flex-1">
                 Отмена
               </Button>
             </div>
