@@ -41,6 +41,7 @@ const Index = () => {
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [locationInput, setLocationInput] = useState('');
+  const [sortBy, setSortBy] = useState<'time' | 'callsign' | 'status-priority' | 'status-available'>('time');
 
   const statusConfig: Record<CrewStatus, { label: string; color: string; icon: string }> = {
     active: { label: "Доступен", color: "bg-green-500", icon: "CheckCircle" },
@@ -799,18 +800,30 @@ const Index = () => {
           </Card>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-0 mb-4 md:mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-6">
           <h2 className="text-xl md:text-2xl font-bold">Активные экипажи</h2>
-          <Dialog open={showCreateDialog} onOpenChange={(open) => {
-            setShowCreateDialog(open);
-            if (open) loadAvailableUsers();
-          }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 w-full sm:w-auto">
-                <Icon name="Plus" size={18} />
-                Создать экипаж
-              </Button>
-            </DialogTrigger>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <Select value={sortBy} onValueChange={(value: typeof sortBy) => setSortBy(value)}>
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="time">По времени создания</SelectItem>
+                <SelectItem value="callsign">По позывному</SelectItem>
+                <SelectItem value="status-priority">По приоритету (срочные)</SelectItem>
+                <SelectItem value="status-available">По статусу (доступные)</SelectItem>
+              </SelectContent>
+            </Select>
+            <Dialog open={showCreateDialog} onOpenChange={(open) => {
+              setShowCreateDialog(open);
+              if (open) loadAvailableUsers();
+            }}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 w-full sm:w-auto">
+                  <Icon name="Plus" size={18} />
+                  Создать экипаж
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>Создание нового экипажа</DialogTitle>
@@ -870,6 +883,7 @@ const Index = () => {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
@@ -880,7 +894,28 @@ const Index = () => {
               <p>Нет активных экипажей</p>
               <p className="text-sm mt-2">Создайте первый экипаж</p>
             </div>
-          ) : crews.map((crew) => (
+          ) : (() => {
+            const statusPriority: Record<CrewStatus, number> = {
+              offline: 4,
+              responding: 3,
+              patrol: 2,
+              active: 1
+            };
+
+            const sortedCrews = [...crews].sort((a, b) => {
+              if (sortBy === 'time') {
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              } else if (sortBy === 'callsign') {
+                return a.callsign.localeCompare(b.callsign);
+              } else if (sortBy === 'status-priority') {
+                return statusPriority[b.status] - statusPriority[a.status];
+              } else if (sortBy === 'status-available') {
+                return statusPriority[a.status] - statusPriority[b.status];
+              }
+              return 0;
+            });
+
+            return sortedCrews.map((crew) => (
             <Card key={crew.id} className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -1010,7 +1045,8 @@ const Index = () => {
                 )}
               </CardContent>
             </Card>
-          ))}
+            ));
+          })()}
         </div>
           </>
         )}
