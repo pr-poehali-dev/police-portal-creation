@@ -37,10 +37,7 @@ const Index = () => {
     second_member_id: null as number | null
   });
 
-  const [notifications, setNotifications] = useState([
-    { id: "1", message: "Экипаж В-312 изменил статус на 'Задержка на ситуации'", time: "1 мин назад", type: "warning" },
-    { id: "2", message: "Экипаж А-101 завершил патрулирование", time: "15 мин назад", type: "info" }
-  ]);
+  const [notifications, setNotifications] = useState<Array<{id: string; message: string; time: string; type: string}>>([]);
   
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -125,6 +122,14 @@ const Index = () => {
         second_member_id: createForm.second_member_id || undefined
       });
       
+      const createNotification = {
+        id: Date.now().toString(),
+        message: `Экипаж ${createForm.callsign} создан пользователем ${user?.full_name}`,
+        time: 'Только что',
+        type: 'success'
+      };
+      setNotifications(prev => [createNotification, ...prev]);
+      
       toast.success("Экипаж успешно создан", {
         description: `Позывной: ${createForm.callsign}`
       });
@@ -170,7 +175,19 @@ const Index = () => {
       const token = auth.getToken();
       if (!token) return;
       
+      const crew = crews.find(c => c.id === crewId);
+      const crewName = crew?.callsign || 'экипаж';
+      
       await crewsApi.deleteCrew(token, crewId);
+      
+      const deleteNotification = {
+        id: Date.now().toString(),
+        message: `Экипаж ${crewName} удалён пользователем ${user?.full_name}`,
+        time: 'Только что',
+        type: 'warning'
+      };
+      setNotifications(prev => [deleteNotification, ...prev]);
+      
       toast.success('Экипаж удалён');
       loadCrews();
     } catch (error) {
@@ -199,6 +216,15 @@ const Index = () => {
       const result = await auth.login(email, password, rememberMe);
       setUser(result.user);
       setIsAuthenticated(true);
+      
+      const loginNotification = {
+        id: Date.now().toString(),
+        message: `${result.user.full_name} вошёл в систему`,
+        time: 'Только что',
+        type: 'success'
+      };
+      setNotifications(prev => [loginNotification, ...prev]);
+      
       toast.success('Вход выполнен', {
         description: `Добро пожаловать, ${result.user.full_name}!`
       });
@@ -232,6 +258,7 @@ const Index = () => {
   };
 
   const handleLogout = () => {
+    const userName = user?.full_name || 'Пользователь';
     auth.logout();
     setUser(null);
     setIsAuthenticated(false);
