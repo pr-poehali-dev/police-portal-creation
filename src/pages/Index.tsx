@@ -638,6 +638,15 @@ const Index = () => {
                   <p className="text-sm font-medium text-white">{user?.full_name || 'Пользователь'}</p>
                   <p className="text-xs text-white/70">{user?.role === 'admin' ? 'Администратор' : user?.role === 'manager' ? 'Менеджер' : user?.role === 'moderator' ? 'Модератор' : 'Сотрудник'}</p>
                 </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-white hover:text-white hover:bg-white/10"
+                >
+                  <Icon name="LogOut" size={16} className="mr-2" />
+                  Выйти
+                </Button>
               </div>
             </div>
           </div>
@@ -981,13 +990,6 @@ const Index = () => {
                     <Label className="text-muted-foreground">Текущий экипаж</Label>
                     <p className="font-medium">{crews.find(c => c.members.some(m => m.user_id === user?.id))?.callsign || 'Не состоите в экипаже'}</p>
                   </div>
-                </div>
-
-                <div className="pt-4 border-t">
-                  <Button variant="outline" className="w-full" onClick={handleLogout}>
-                    <Icon name="LogOut" size={18} className="mr-2" />
-                    Выйти из системы
-                  </Button>
                 </div>
               </CardContent>
             </Card>
