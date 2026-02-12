@@ -176,7 +176,7 @@ def update_user(event: dict, current_user: dict):
                     return error_response(400, 'Email already exists')
                 updates.append(f"email = '{email}'")
             if 'user_id' in body:
-                new_user_id = body['user_id'].replace("'", "''")
+                new_user_id = str(body['user_id']).replace("'", "''")
                 # Проверка уникальности user_id
                 cur.execute(f"SELECT id FROM users WHERE user_id = '{new_user_id}' AND id != {user_id}")
                 if cur.fetchone():
