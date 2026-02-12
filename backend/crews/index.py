@@ -153,7 +153,7 @@ def create_crew(event: dict, current_user: dict):
         
         cur.execute(
             """INSERT INTO crews (callsign, location, status, creator_id)
-               VALUES (%s, %s, 'active', %s) RETURNING id""",
+               VALUES (%s, %s, 'available', %s) RETURNING id""",
             (callsign, location, current_user['id'])
         )
         crew_id = cur.fetchone()['id']
@@ -207,7 +207,7 @@ def update_crew(event: dict, current_user: dict):
         
         if action == 'update_status':
             new_status = body.get('status')
-            if new_status not in ['active', 'patrol', 'responding', 'offline']:
+            if new_status not in ['available', 'busy', 'delay', 'need_help']:
                 return error_response(400, 'Invalid status')
             
             cur.execute(

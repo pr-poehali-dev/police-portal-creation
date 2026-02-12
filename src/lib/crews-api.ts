@@ -11,7 +11,7 @@ export interface Crew {
   id: number;
   callsign: string;
   location: string;
-  status: 'active' | 'patrol' | 'responding' | 'offline';
+  status: 'available' | 'busy' | 'delay' | 'need_help';
   creator_id: number;
   members: CrewMember[];
   created_at: string;

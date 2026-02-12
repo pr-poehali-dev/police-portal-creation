@@ -16,7 +16,7 @@ import { auth, User } from "@/lib/auth";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { crewsApi, Crew as ApiCrew } from "@/lib/crews-api";
 
-type CrewStatus = "active" | "patrol" | "responding" | "offline";
+type CrewStatus = "available" | "busy" | "delay" | "need_help";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -44,10 +44,10 @@ const Index = () => {
   const [sortBy, setSortBy] = useState<'time' | 'callsign' | 'status-priority' | 'status-available'>('time');
 
   const statusConfig: Record<CrewStatus, { label: string; color: string; icon: string }> = {
-    active: { label: "Доступен", color: "bg-green-500", icon: "CheckCircle" },
-    patrol: { label: "Занят", color: "bg-yellow-500", icon: "Clock" },
-    responding: { label: "Задержка на ситуации", color: "bg-orange-600", icon: "AlertTriangle" },
-    offline: { label: "Требуется поддержка", color: "bg-red-600", icon: "AlertOctagon" }
+    available: { label: "Доступен", color: "bg-green-500", icon: "CheckCircle" },
+    busy: { label: "Занят", color: "bg-yellow-500", icon: "Clock" },
+    delay: { label: "Задержка на ситуации", color: "bg-orange-600", icon: "AlertTriangle" },
+    need_help: { label: "Требуется поддержка", color: "bg-red-600", icon: "AlertOctagon" }
   };
 
   useEffect(() => {
@@ -163,7 +163,7 @@ const Index = () => {
       const crew = crews.find(c => c.id === crewId);
       const notifMessage = `Экипаж ${crew?.callsign} изменил статус на '${statusConfig[newStatus].label}'`;
       
-      addNotification(notifMessage, newStatus === "offline" ? "error" : newStatus === "responding" ? "warning" : "info");
+      addNotification(notifMessage, newStatus === "need_help" ? "error" : newStatus === "delay" ? "warning" : "info");
       
       toast.info("Статус обновлен", {
         description: `Экипаж ${crew?.callsign} → ${statusConfig[newStatus].label}`
@@ -644,36 +644,36 @@ const Index = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <Button 
                             size="sm"
-                            variant={myCrew.status === "active" ? "default" : "outline"} 
-                            className={`gap-2 ${myCrew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
-                            onClick={() => handleStatusChange(myCrew.id, "active")}
+                            variant={myCrew.status === "available" ? "default" : "outline"} 
+                            className={`gap-2 ${myCrew.status === "available" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                            onClick={() => handleStatusChange(myCrew.id, "available")}
                           >
                             <Icon name="CheckCircle" size={16} />
                             Доступен
                           </Button>
                           <Button 
                             size="sm"
-                            variant={myCrew.status === "patrol" ? "default" : "outline"} 
-                            className={`gap-2 ${myCrew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
-                            onClick={() => handleStatusChange(myCrew.id, "patrol")}
+                            variant={myCrew.status === "busy" ? "default" : "outline"} 
+                            className={`gap-2 ${myCrew.status === "busy" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
+                            onClick={() => handleStatusChange(myCrew.id, "busy")}
                           >
                             <Icon name="Clock" size={16} />
                             Занят
                           </Button>
                           <Button 
                             size="sm"
-                            variant={myCrew.status === "responding" ? "default" : "outline"} 
-                            className={`gap-2 ${myCrew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
-                            onClick={() => handleStatusChange(myCrew.id, "responding")}
+                            variant={myCrew.status === "delay" ? "default" : "outline"} 
+                            className={`gap-2 ${myCrew.status === "delay" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                            onClick={() => handleStatusChange(myCrew.id, "delay")}
                           >
                             <Icon name="AlertTriangle" size={16} />
                             Задержка
                           </Button>
                           <Button 
                             size="sm"
-                            variant={myCrew.status === "offline" ? "default" : "outline"} 
-                            className={`gap-2 ${myCrew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
-                            onClick={() => handleStatusChange(myCrew.id, "offline")}
+                            variant={myCrew.status === "need_help" ? "default" : "outline"} 
+                            className={`gap-2 ${myCrew.status === "need_help" ? "bg-red-600 hover:bg-red-700" : ""}`}
+                            onClick={() => handleStatusChange(myCrew.id, "need_help")}
                           >
                             <Icon name="AlertOctagon" size={16} />
                             Поддержка
@@ -745,7 +745,7 @@ const Index = () => {
             <CardHeader className="pb-2">
               <CardDescription className="text-green-100">Доступные экипажи</CardDescription>
               <CardTitle className="text-4xl font-bold">
-                {crews.filter(c => c.status === "active").length}
+                {crews.filter(c => c.status === "available").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -760,7 +760,7 @@ const Index = () => {
             <CardHeader className="pb-2">
               <CardDescription className="text-yellow-100">Занятые экипажи</CardDescription>
               <CardTitle className="text-4xl font-bold">
-                {crews.filter(c => c.status === "patrol" || c.status === "responding").length}
+                {crews.filter(c => c.status === "busy" || c.status === "delay").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -775,7 +775,7 @@ const Index = () => {
             <CardHeader className="pb-2">
               <CardDescription className="text-red-100">Запрос поддержки</CardDescription>
               <CardTitle className="text-4xl font-bold">
-                {crews.filter(c => c.status === "offline").length}
+                {crews.filter(c => c.status === "need_help").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -896,10 +896,10 @@ const Index = () => {
             </div>
           ) : (() => {
             const statusPriority: Record<CrewStatus, number> = {
-              offline: 4,
-              responding: 3,
-              patrol: 2,
-              active: 1
+              need_help: 4,
+              delay: 3,
+              busy: 2,
+              available: 1
             };
 
             const sortedCrews = [...crews].sort((a, b) => {
@@ -1005,36 +1005,36 @@ const Index = () => {
                       <div className="grid grid-cols-2 gap-2 text-xs md:text-sm">
                         <Button 
                           size="sm" 
-                          variant={crew.status === "active" ? "default" : "outline"}
-                          onClick={() => handleStatusChange(crew.id, "active")}
-                          className={`gap-1 ${crew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                          variant={crew.status === "available" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "available")}
+                          className={`gap-1 ${crew.status === "available" ? "bg-green-600 hover:bg-green-700" : ""}`}
                         >
                           <Icon name="CheckCircle" size={14} />
                           Доступен
                         </Button>
                         <Button 
                           size="sm" 
-                          variant={crew.status === "patrol" ? "default" : "outline"}
-                          onClick={() => handleStatusChange(crew.id, "patrol")}
-                          className={`gap-1 ${crew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
+                          variant={crew.status === "busy" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "busy")}
+                          className={`gap-1 ${crew.status === "busy" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
                         >
                           <Icon name="Clock" size={14} />
                           Занят
                         </Button>
                         <Button 
                           size="sm" 
-                          variant={crew.status === "responding" ? "default" : "outline"}
-                          onClick={() => handleStatusChange(crew.id, "responding")}
-                          className={`gap-1 ${crew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                          variant={crew.status === "delay" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "delay")}
+                          className={`gap-1 ${crew.status === "delay" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
                         >
                           <Icon name="AlertTriangle" size={14} />
                           Задержка
                         </Button>
                         <Button 
                           size="sm" 
-                          variant={crew.status === "offline" ? "default" : "outline"}
-                          onClick={() => handleStatusChange(crew.id, "offline")}
-                          className={`gap-1 ${crew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
+                          variant={crew.status === "need_help" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "need_help")}
+                          className={`gap-1 ${crew.status === "need_help" ? "bg-red-600 hover:bg-red-700" : ""}`}
                         >
                           <Icon name="AlertOctagon" size={14} />
                           Поддержка
