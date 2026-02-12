@@ -20,22 +20,26 @@ export interface Crew {
 
 export const crewsApi = {
   async getCrews(token: string): Promise<Crew[]> {
-    const response = await fetch(CREWS_API_URL, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
+    try {
+      const response = await fetch(CREWS_API_URL, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to fetch crews');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }));
+        throw new Error(error.error || 'Failed to fetch crews');
+      }
+
+      const result = await response.json();
+      return result.crews || [];
+    } catch (error) {
+      console.error('Fetch error:', error);
+      throw error;
     }
-
-    const result = await response.json();
-    return result.crews;
   },
 
   async createCrew(token: string, data: {
@@ -43,19 +47,23 @@ export const crewsApi = {
     location?: string;
     second_member_id?: number;
   }): Promise<void> {
-    const response = await fetch(CREWS_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      credentials: 'include',
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await fetch(CREWS_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to create crew');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }));
+        throw new Error(error.error || 'Failed to create crew');
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      throw error;
     }
   },
 
@@ -66,7 +74,6 @@ export const crewsApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({
         crew_id: crewId,
         action: 'update_status',
@@ -87,7 +94,6 @@ export const crewsApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({
         crew_id: crewId,
         action: 'update_location',
@@ -108,7 +114,6 @@ export const crewsApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -124,7 +129,6 @@ export const crewsApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!usersResponse.ok) {
@@ -139,7 +143,6 @@ export const crewsApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!crewsResponse.ok) {
