@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from security import sanitize_string, sanitize_email, validate_password
+from security_headers import get_security_headers, get_cors_headers
+from rate_limiter import is_blocked, record_attempt, get_remaining_attempts
 
 def handler(event: dict, context) -> dict:
     """API для регистрации и авторизации пользователей"""
@@ -14,12 +16,7 @@ def handler(event: dict, context) -> dict:
     if method == 'OPTIONS':
         return {
             'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization',
-                'Access-Control-Max-Age': '86400'
-            },
+            'headers': get_cors_headers(),
             'body': '',
             'isBase64Encoded': False
         }
@@ -36,10 +33,15 @@ def handler(event: dict, context) -> dict:
         body = json.loads(event.get('body', '{}'))
         action = body.get('action')
         
+        # Получаем IP клиента
+        request_context = event.get('requestContext', {})
+        identity = request_context.get('identity', {})
+        client_ip = identity.get('sourceIp', '0.0.0.0')
+        
         if action == 'register':
             return handle_register(body)
         elif action == 'login':
-            return handle_login(body)
+            return handle_login(body, client_ip)
         elif action == 'verify':
             headers = event.get('headers', {})
             token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
@@ -171,15 +173,25 @@ def handle_register(body: dict) -> dict:
         cur.close()
         conn.close()
 
-def handle_login(body: dict) -> dict:
-    """Авторизация пользователя"""
+def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
+    """Авторизация пользователя с rate limiting"""
     login_input = body.get('email', '').strip()
     password = body.get('password', '')
+    
+    # Проверка rate limiting
+    if is_blocked(client_ip):
+        print(f"SECURITY: Blocked login attempt from IP: {client_ip}")
+        return {
+            'statusCode': 429,
+            'headers': get_security_headers(),
+            'body': json.dumps({'error': 'Too many failed attempts. Try again later.'}),
+            'isBase64Encoded': False
+        }
     
     if not login_input or not password:
         return {
             'statusCode': 400,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(),
             'body': json.dumps({'error': 'Email/ID and password are required'}),
             'isBase64Encoded': False
         }
@@ -203,21 +215,36 @@ def handle_login(body: dict) -> dict:
         
         user = cur.fetchone()
         
-        if not user or not verify_password(password, user['password_hash']):
+        # Защита от timing attacks: всегда проверяем хеш, даже если пользователь не найден
+        dummy_hash = hash_password('dummy_password_for_timing_protection')
+        password_valid = verify_password(password, user['password_hash'] if user else dummy_hash)
+        
+        if not user or not password_valid:
+            print(f"SECURITY: Failed login attempt for: {login_input} from IP: {client_ip}")
+            record_attempt(client_ip, False)
+            remaining = get_remaining_attempts(client_ip)
             return {
                 'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Invalid email or password'}),
+                'headers': get_security_headers(),
+                'body': json.dumps({
+                    'error': 'Invalid email or password',
+                    'remaining_attempts': remaining
+                }),
                 'isBase64Encoded': False
             }
         
         if not user.get('is_active', False):
+            record_attempt(client_ip, False)
             return {
                 'statusCode': 403,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(),
                 'body': json.dumps({'error': 'Account is not activated. Please wait for administrator approval.'}),
                 'isBase64Encoded': False
             }
+        
+        # Успешная попытка входа
+        record_attempt(client_ip, True)
+        print(f"SECURITY: Successful login for: {login_input} from IP: {client_ip}")
         
         token = generate_token()
         token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -234,7 +261,7 @@ def handle_login(body: dict) -> dict:
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(),
             'body': json.dumps({
                 'token': token,
                 'user': user_data
