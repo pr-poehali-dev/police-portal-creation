@@ -843,7 +843,7 @@ const Index = () => {
                               </Badge>
                             )}
                           </div>
-                          <CardTitle className="text-lg">{bolo.mainInfo}</CardTitle>
+                          <CardTitle className="text-xl font-bold">{bolo.mainInfo}</CardTitle>
                         </div>
                         <div className="flex gap-1">
                           <Button
@@ -866,8 +866,8 @@ const Index = () => {
                     <CardContent className="space-y-3 flex-1">
                       {bolo.additionalInfo && (
                         <div>
-                          <Label className="text-xs text-muted-foreground">Дополнительные сведения</Label>
-                          <p className="text-sm mt-1">{bolo.additionalInfo}</p>
+                          <Label className="text-sm text-muted-foreground font-semibold">Дополнительные сведения</Label>
+                          <p className="text-base mt-1 leading-relaxed">{bolo.additionalInfo}</p>
                         </div>
                       )}
                       <div className="text-xs text-muted-foreground pt-2 border-t mt-auto">
