@@ -1,9 +1,16 @@
 import json
 import os
 import hashlib
+import secrets
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+def hash_password(password: str) -> str:
+    """Хеширование пароля с солью"""
+    salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha512((password + salt).encode()).hexdigest()
+    return f"{salt}${pwd_hash}"
 
 def handler(event: dict, context) -> dict:
     """API для управления пользователями (только для admin и manager)"""
@@ -161,6 +168,25 @@ def update_user(event: dict, current_user: dict):
                 updates.append(f"full_name = '{full_name}'")
             if 'role' in body and body['role'] in ['user', 'moderator', 'admin', 'manager']:
                 updates.append(f"role = '{body['role']}'")
+            if 'email' in body:
+                email = body['email'].lower().replace("'", "''")
+                # Проверка уникальности email
+                cur.execute(f"SELECT id FROM users WHERE email = '{email}' AND id != {user_id}")
+                if cur.fetchone():
+                    return error_response(400, 'Email already exists')
+                updates.append(f"email = '{email}'")
+            if 'user_id' in body:
+                new_user_id = body['user_id'].replace("'", "''")
+                # Проверка уникальности user_id
+                cur.execute(f"SELECT id FROM users WHERE user_id = '{new_user_id}' AND id != {user_id}")
+                if cur.fetchone():
+                    return error_response(400, 'User ID already exists')
+                updates.append(f"user_id = '{new_user_id}'")
+            if 'password' in body:
+                # Сброс пароля
+                password_hash = hash_password(body['password'])
+                password_hash_escaped = password_hash.replace("'", "''")
+                updates.append(f"password_hash = '{password_hash_escaped}'")
             
             if updates:
                 updates.append("updated_at = NOW()")

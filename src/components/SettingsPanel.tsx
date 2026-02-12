@@ -22,7 +22,10 @@ export function SettingsPanel() {
   const [activationRole, setActivationRole] = useState<string>('user');
   const [editForm, setEditForm] = useState({
     full_name: '',
-    role: 'user'
+    role: 'user',
+    email: '',
+    user_id: '',
+    password: ''
   });
 
   useEffect(() => {
@@ -119,15 +122,18 @@ export function SettingsPanel() {
     }
   };
 
-  const handleDelete = async (userId: number) => {
-    if (!confirm('Вы уверены? Это действие нельзя отменить.')) return;
+  const [deletingUser, setDeletingUser] = useState<UserManagement | null>(null);
+  
+  const handleDelete = async () => {
+    if (!deletingUser) return;
     
     try {
       const token = auth.getToken();
       if (!token) return;
       
-      await usersApi.deleteUser(token, userId);
+      await usersApi.deleteUser(token, deletingUser.id);
       toast.success('Пользователь удалён');
+      setDeletingUser(null);
       loadUsers();
     } catch (error) {
       toast.error('Ошибка', {
@@ -140,7 +146,10 @@ export function SettingsPanel() {
     setEditingUser(user);
     setEditForm({
       full_name: user.full_name,
-      role: user.role
+      role: user.role,
+      email: user.email,
+      user_id: user.user_id,
+      password: ''
     });
   };
 
@@ -151,7 +160,25 @@ export function SettingsPanel() {
       const token = auth.getToken();
       if (!token) return;
       
-      await usersApi.updateUser(token, editingUser.id, editForm);
+      const updateData: {
+        full_name: string;
+        role: string;
+        email: string;
+        user_id: string;
+        password?: string;
+      } = {
+        full_name: editForm.full_name,
+        role: editForm.role,
+        email: editForm.email,
+        user_id: editForm.user_id
+      };
+      
+      // Добавляем пароль только если он был изменен
+      if (editForm.password) {
+        updateData.password = editForm.password;
+      }
+      
+      await usersApi.updateUser(token, editingUser.id, updateData);
       toast.success('Данные обновлены');
       setEditingUser(null);
       loadUsers();
@@ -229,7 +256,7 @@ export function SettingsPanel() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => setDeletingUser(user)}
                       >
                         <Icon name="Trash2" size={16} />
                       </Button>
@@ -283,7 +310,7 @@ export function SettingsPanel() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => setDeletingUser(user)}
                       >
                         <Icon name="Trash2" size={16} />
                       </Button>
@@ -311,6 +338,34 @@ export function SettingsPanel() {
                 id="edit-name"
                 value={editForm.full_name}
                 onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-id">ID пользователя</Label>
+              <Input
+                id="edit-user-id"
+                value={editForm.user_id}
+                onChange={(e) => setEditForm({ ...editForm, user_id: e.target.value })}
+                placeholder="00001"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-password">Новый пароль (оставьте пустым, если не хотите менять)</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                placeholder="Минимум 6 символов"
               />
             </div>
             <div className="space-y-2">
@@ -396,6 +451,36 @@ export function SettingsPanel() {
                 Активировать
               </Button>
               <Button variant="outline" onClick={() => setActivatingUser(null)} className="flex-1">
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удаление пользователя</DialogTitle>
+            <DialogDescription>
+              Вы действительно хотите удалить профиль пользователя <strong>{deletingUser?.full_name}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
+              <div className="flex items-start gap-2">
+                <Icon name="AlertTriangle" size={16} className="mt-0.5" />
+                <div>
+                  <p className="font-semibold">Это действие невозможно отменить</p>
+                  <p className="mt-1 text-xs">Все данные пользователя будут удалены безвозвратно.</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="destructive" onClick={handleDelete} className="flex-1">
+                Удалить пользователя
+              </Button>
+              <Button variant="outline" onClick={() => setDeletingUser(null)} className="flex-1">
                 Отмена
               </Button>
             </div>

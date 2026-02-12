@@ -72,6 +72,9 @@ export const usersApi = {
   async updateUser(token: string, userId: number, data: {
     full_name?: string;
     role?: string;
+    email?: string;
+    user_id?: string;
+    password?: string;
   }): Promise<void> {
     const response = await fetch(USERS_API_URL, {
       method: 'POST',
