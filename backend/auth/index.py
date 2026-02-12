@@ -13,11 +13,13 @@ from rate_limiter import is_blocked, record_attempt, get_remaining_attempts
 def handler(event: dict, context) -> dict:
     """API для регистрации и авторизации пользователей"""
     method = event.get('httpMethod', 'GET')
+    headers = event.get('headers', {})
+    origin = headers.get('Origin') or headers.get('origin')
     
     if method == 'OPTIONS':
         return {
             'statusCode': 200,
-            'headers': get_cors_headers(),
+            'headers': get_cors_headers(origin),
             'body': '',
             'isBase64Encoded': False
         }
@@ -25,7 +27,7 @@ def handler(event: dict, context) -> dict:
     if method != 'POST':
         return {
             'statusCode': 405,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': 'Method not allowed'}),
             'isBase64Encoded': False
         }
@@ -40,23 +42,21 @@ def handler(event: dict, context) -> dict:
         client_ip = identity.get('sourceIp', '0.0.0.0')
         
         if action == 'register':
-            return handle_register(body)
+            return handle_register(body, origin)
         elif action == 'login':
-            return handle_login(body, client_ip)
+            return handle_login(body, client_ip, origin)
         elif action == 'verify':
-            headers = event.get('headers', {})
             cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
             token = extract_token_from_cookie(cookies)
-            return handle_verify(token)
+            return handle_verify(token, origin)
         elif action == 'update_profile':
-            headers = event.get('headers', {})
             cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
             token = extract_token_from_cookie(cookies)
-            return handle_update_profile(body, token)
+            return handle_update_profile(body, token, origin)
         else:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(origin),
                 'body': json.dumps({'error': 'Invalid action'}),
                 'isBase64Encoded': False
             }
@@ -64,7 +64,7 @@ def handler(event: dict, context) -> dict:
         print(f"ERROR handler: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
@@ -106,7 +106,7 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
-def handle_register(body: dict) -> dict:
+def handle_register(body: dict, origin=None) -> dict:
     """Регистрация нового пользователя"""
     try:
         email = sanitize_email(body.get('email', ''))
@@ -116,14 +116,14 @@ def handle_register(body: dict) -> dict:
         if not email or not password or not full_name:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(origin),
                 'body': json.dumps({'error': 'Email, password and full_name are required'}),
                 'isBase64Encoded': False
             }
     except ValueError as e:
         return {
             'statusCode': 400,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
@@ -136,7 +136,7 @@ def handle_register(body: dict) -> dict:
         if cur.fetchone():
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(origin),
                 'body': json.dumps({'error': 'User already exists'}),
                 'isBase64Encoded': False
             }
@@ -168,14 +168,12 @@ def handle_register(body: dict) -> dict:
         
         cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/"
         
+        response_headers = get_security_headers(origin)
+        response_headers['X-Set-Cookie'] = cookie_value
+        
         return {
             'statusCode': 201,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Credentials': 'true',
-                'X-Set-Cookie': cookie_value
-            },
+            'headers': response_headers,
             'body': json.dumps({
                 'user': dict(user)
             }),
@@ -185,7 +183,7 @@ def handle_register(body: dict) -> dict:
         print(f"ERROR handle_register: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
@@ -193,7 +191,7 @@ def handle_register(body: dict) -> dict:
         cur.close()
         conn.close()
 
-def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
+def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
     """Авторизация пользователя с rate limiting"""
     login_input = body.get('email', '').strip()
     password = body.get('password', '')
@@ -203,7 +201,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
         print(f"SECURITY: Blocked login attempt from IP: {client_ip}")
         return {
             'statusCode': 429,
-            'headers': get_security_headers(),
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': 'Too many failed attempts. Try again later.'}),
             'isBase64Encoded': False
         }
@@ -211,7 +209,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
     if not login_input or not password:
         return {
             'statusCode': 400,
-            'headers': get_security_headers(),
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': 'Email/ID and password are required'}),
             'isBase64Encoded': False
         }
@@ -245,7 +243,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
             remaining = get_remaining_attempts(client_ip)
             return {
                 'statusCode': 401,
-                'headers': get_security_headers(),
+                'headers': get_security_headers(origin),
                 'body': json.dumps({
                     'error': 'Invalid email or password',
                     'remaining_attempts': remaining
@@ -280,8 +278,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
         user_data.pop('password_hash', None)
         
         cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/"
-        headers = get_security_headers()
-        headers['Access-Control-Allow-Credentials'] = 'true'
+        headers = get_security_headers(origin)
         headers['X-Set-Cookie'] = cookie_value
         
         return {
@@ -296,7 +293,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
         print(f"ERROR handle_login: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
@@ -304,12 +301,12 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
         cur.close()
         conn.close()
 
-def handle_verify(token: str) -> dict:
+def handle_verify(token: str, origin=None) -> dict:
     """Проверка токена и получение данных пользователя"""
     if not token:
         return {
             'statusCode': 401,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': 'Token required'}),
             'isBase64Encoded': False
         }
@@ -332,14 +329,14 @@ def handle_verify(token: str) -> dict:
         if not user:
             return {
                 'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(origin),
                 'body': json.dumps({'error': 'Invalid or expired token'}),
                 'isBase64Encoded': False
             }
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'user': dict(user)}),
             'isBase64Encoded': False
         }
@@ -347,7 +344,7 @@ def handle_verify(token: str) -> dict:
         print(f"ERROR handle_verify: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
@@ -355,12 +352,12 @@ def handle_verify(token: str) -> dict:
         cur.close()
         conn.close()
 
-def handle_update_profile(body: dict, token: str) -> dict:
+def handle_update_profile(body: dict, token: str, origin=None) -> dict:
     """Обновление профиля пользователя"""
     if not token:
         return {
             'statusCode': 401,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': 'Token required'}),
             'isBase64Encoded': False
         }
@@ -372,7 +369,7 @@ def handle_update_profile(body: dict, token: str) -> dict:
     except ValueError as e:
         return {
             'statusCode': 400,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
@@ -395,7 +392,7 @@ def handle_update_profile(body: dict, token: str) -> dict:
         if not user:
             return {
                 'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(origin),
                 'body': json.dumps({'error': 'Invalid or expired token'}),
                 'isBase64Encoded': False
             }
@@ -412,7 +409,7 @@ def handle_update_profile(body: dict, token: str) -> dict:
             if not verify_password(current_password, user['password_hash']):
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_security_headers(origin),
                     'body': json.dumps({'error': 'Неверный текущий пароль'}),
                     'isBase64Encoded': False
                 }
@@ -424,7 +421,7 @@ def handle_update_profile(body: dict, token: str) -> dict:
         if not updates:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_security_headers(origin),
                 'body': json.dumps({'error': 'No fields to update'}),
                 'isBase64Encoded': False
             }
@@ -437,7 +434,7 @@ def handle_update_profile(body: dict, token: str) -> dict:
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'user': dict(updated_user)}),
             'isBase64Encoded': False
         }
@@ -445,7 +442,7 @@ def handle_update_profile(body: dict, token: str) -> dict:
         print(f"ERROR handle_update_profile: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_security_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }

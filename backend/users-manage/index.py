@@ -26,50 +26,57 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
+def get_cors_headers(origin=None):
+    """Возвращает CORS headers с правильным Origin"""
+    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    return {
+        'Access-Control-Allow-Origin': allowed_origin,
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400',
+        'Content-Type': 'application/json'
+    }
+
 def handler(event: dict, context) -> dict:
     """API для управления пользователями (только для admin и manager)"""
     method = event.get('httpMethod', 'GET')
+    headers = event.get('headers', {})
+    origin = headers.get('Origin') or headers.get('origin')
     
     if method == 'OPTIONS':
         return {
             'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
-                'Access-Control-Allow-Credentials': 'true',
-                'Access-Control-Max-Age': '86400'
-            },
+            'headers': get_cors_headers(origin),
             'body': '',
             'isBase64Encoded': False
         }
     
-    headers = event.get('headers', {})
     cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
     token = extract_token_from_cookie(cookies)
     
     if not token:
-        return error_response(401, 'Authentication required')
+        return error_response(401, 'Authentication required', origin)
     
     current_user = verify_token(token)
     if not current_user:
-        return error_response(401, 'Invalid token')
+        return error_response(401, 'Invalid token', origin)
     
     if current_user['role'] not in ['admin', 'manager']:
-        return error_response(403, 'Access denied. Admin or Manager role required.')
+        return error_response(403, 'Access denied. Admin or Manager role required.', origin)
     
     try:
         if method == 'GET':
-            return get_users(event, current_user)
+            return get_users(event, current_user, origin)
         elif method == 'POST':
-            return update_user(event, current_user)
+            return update_user(event, current_user, origin)
         elif method == 'DELETE':
-            return delete_user(event, current_user)
+            return delete_user(event, current_user, origin)
         else:
-            return error_response(405, 'Method not allowed')
+            return error_response(405, 'Method not allowed', origin)
     except Exception as e:
         print(f"ERROR: {str(e)}")
-        return error_response(500, str(e))
+        return error_response(500, str(e), origin)
 
 def get_db_connection():
     """Создание подключения к БД"""
@@ -103,7 +110,7 @@ def verify_token(token: str):
         cur.close()
         conn.close()
 
-def get_users(event: dict, current_user: dict):
+def get_users(event: dict, current_user: dict, origin=None):
     """Получить список пользователей с фильтрацией"""
     params = event.get('queryStringParameters') or {}
     status = params.get('status', 'all')
@@ -127,7 +134,7 @@ def get_users(event: dict, current_user: dict):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(origin),
             'body': json.dumps({
                 'users': [dict(u) for u in users],
                 'total': len(users)
@@ -136,19 +143,19 @@ def get_users(event: dict, current_user: dict):
         }
     except Exception as e:
         print(f"ERROR get_users: {str(e)}")
-        return error_response(500, str(e))
+        return error_response(500, str(e), origin)
     finally:
         cur.close()
         conn.close()
 
-def update_user(event: dict, current_user: dict):
+def update_user(event: dict, current_user: dict, origin=None):
     """Обновление пользователя (активация, блокировка, изменение данных)"""
     body = json.loads(event.get('body', '{}'))
     action = body.get('action')
     user_id = body.get('user_id')
     
     if not user_id or not isinstance(user_id, int):
-        return error_response(400, 'Valid user_id is required')
+        return error_response(400, 'Valid user_id is required', origin)
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -157,15 +164,15 @@ def update_user(event: dict, current_user: dict):
         if action == 'activate':
             cur.execute("UPDATE users SET is_active = true WHERE id = %s", (user_id,))
             conn.commit()
-            return success_response({'message': 'User activated successfully'})
+            return success_response({'message': 'User activated successfully'}, origin)
         
         elif action == 'deactivate':
             if current_user['id'] == user_id:
-                return error_response(403, 'You cannot deactivate yourself')
+                return error_response(403, 'You cannot deactivate yourself', origin)
             
             cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
             conn.commit()
-            return success_response({'message': 'User deactivated successfully'})
+            return success_response({'message': 'User deactivated successfully'}, origin)
         
         elif action == 'update':
             updates = []
@@ -181,7 +188,7 @@ def update_user(event: dict, current_user: dict):
                     new_role = validate_role(body['role'])
                     
                     if current_user['role'] == 'manager' and new_role == 'manager':
-                        return error_response(403, 'Managers cannot assign Manager role')
+                        return error_response(403, 'Managers cannot assign Manager role', origin)
                     
                     updates.append("role = %s")
                     params.append(new_role)
@@ -191,7 +198,7 @@ def update_user(event: dict, current_user: dict):
                     
                     cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (email, user_id))
                     if cur.fetchone():
-                        return error_response(400, 'Email already exists')
+                        return error_response(400, 'Email already exists', origin)
                     
                     updates.append("email = %s")
                     params.append(email)
@@ -200,14 +207,14 @@ def update_user(event: dict, current_user: dict):
                     new_user_id = sanitize_user_id(str(body['new_user_id']).strip())
                     
                     if not new_user_id:
-                        return error_response(400, 'User ID cannot be empty')
+                        return error_response(400, 'User ID cannot be empty', origin)
                     
                     if new_user_id.isdigit():
                         new_user_id = new_user_id.zfill(5)
                     
                     cur.execute("SELECT id FROM users WHERE user_id = %s AND id != %s", (new_user_id, user_id))
                     if cur.fetchone():
-                        return error_response(400, 'User ID already exists')
+                        return error_response(400, 'User ID already exists', origin)
                     
                     updates.append("user_id = %s")
                     params.append(new_user_id)
@@ -219,7 +226,7 @@ def update_user(event: dict, current_user: dict):
                     params.append(password_hash)
                 
             except ValueError as e:
-                return error_response(400, str(e))
+                return error_response(400, str(e), origin)
             
             if updates:
                 updates.append("updated_at = NOW()")
@@ -227,38 +234,38 @@ def update_user(event: dict, current_user: dict):
                 query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
                 cur.execute(query, params)
                 conn.commit()
-                return success_response({'message': 'User updated successfully'})
+                return success_response({'message': 'User updated successfully'}, origin)
             else:
-                return error_response(400, 'No fields to update')
+                return error_response(400, 'No fields to update', origin)
         
         else:
-            return error_response(400, 'Invalid action')
+            return error_response(400, 'Invalid action', origin)
     
     except Exception as e:
         print(f"ERROR update_user: {str(e)}")
-        return error_response(500, str(e))
+        return error_response(500, str(e), origin)
     finally:
         cur.close()
         conn.close()
 
-def delete_user(event: dict, current_user: dict):
+def delete_user(event: dict, current_user: dict, origin=None):
     """Удаление пользователя (для admin и manager)"""
     if current_user['role'] not in ['admin', 'manager']:
-        return error_response(403, 'Only admin or manager can delete users')
+        return error_response(403, 'Only admin or manager can delete users', origin)
     
     params = event.get('queryStringParameters') or {}
     user_id = params.get('user_id')
     
     if not user_id:
-        return error_response(400, 'user_id is required')
+        return error_response(400, 'user_id is required', origin)
     
     try:
         user_id = int(user_id)
     except ValueError:
-        return error_response(400, 'Invalid user_id format')
+        return error_response(400, 'Invalid user_id format', origin)
     
     if current_user['id'] == user_id:
-        return error_response(403, 'You cannot delete yourself')
+        return error_response(403, 'You cannot delete yourself', origin)
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -268,28 +275,28 @@ def delete_user(event: dict, current_user: dict):
         cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
         
-        return success_response({'message': 'User deleted successfully'})
+        return success_response({'message': 'User deleted successfully'}, origin)
     except Exception as e:
         print(f"ERROR delete_user: {str(e)}")
-        return error_response(500, str(e))
+        return error_response(500, str(e), origin)
     finally:
         cur.close()
         conn.close()
 
-def error_response(status_code: int, message: str):
+def error_response(status_code: int, message: str, origin=None):
     """Формирование ответа с ошибкой"""
     return {
         'statusCode': status_code,
-        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+        'headers': get_cors_headers(origin),
         'body': json.dumps({'error': message}),
         'isBase64Encoded': False
     }
 
-def success_response(data: dict):
+def success_response(data: dict, origin=None):
     """Формирование успешного ответа"""
     return {
         'statusCode': 200,
-        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+        'headers': get_cors_headers(origin),
         'body': json.dumps(data),
         'isBase64Encoded': False
     }

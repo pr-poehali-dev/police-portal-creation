@@ -6,6 +6,18 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from security import sanitize_string
 
+def get_cors_headers(origin=None):
+    """Возвращает CORS headers с правильным Origin"""
+    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    return {
+        'Access-Control-Allow-Origin': allowed_origin,
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400',
+        'Content-Type': 'application/json'
+    }
+
 def extract_token_from_cookie(cookies: str) -> str:
     """Извлечение токена из Cookie header"""
     if not cookies:
@@ -20,45 +32,40 @@ def extract_token_from_cookie(cookies: str) -> str:
 def handler(event: dict, context) -> dict:
     """API для управления экипажами"""
     method = event.get('httpMethod', 'GET')
+    headers = event.get('headers', {})
+    origin = headers.get('Origin') or headers.get('origin')
     
     if method == 'OPTIONS':
         return {
             'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
-                'Access-Control-Allow-Credentials': 'true',
-                'Access-Control-Max-Age': '86400'
-            },
+            'headers': get_cors_headers(origin),
             'body': '',
             'isBase64Encoded': False
         }
     
-    headers = event.get('headers', {})
     cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
     token = extract_token_from_cookie(cookies)
     
     if not token:
-        return error_response(401, 'Authentication required')
+        return error_response(401, 'Authentication required', origin)
     
     current_user = verify_token(token)
     if not current_user:
-        return error_response(401, 'Invalid token')
+        return error_response(401, 'Invalid token', origin)
     
     try:
         if method == 'GET':
-            return get_crews(event, current_user)
+            return get_crews(event, current_user, origin)
         elif method == 'POST':
-            return create_crew(event, current_user)
+            return create_crew(event, current_user, origin)
         elif method == 'PUT':
-            return update_crew(event, current_user)
+            return update_crew(event, current_user, origin)
         elif method == 'DELETE':
-            return delete_crew(event, current_user)
+            return delete_crew(event, current_user, origin)
         else:
-            return error_response(405, 'Method not allowed')
+            return error_response(405, 'Method not allowed', origin)
     except Exception as e:
-        return error_response(500, str(e))
+        return error_response(500, str(e), origin)
 
 def get_db_connection():
     """Создание подключения к БД"""
@@ -102,7 +109,7 @@ def can_manage_crew(current_user: dict, crew_creator_id: int, crew_members: list
     
     return False
 
-def get_crews(event: dict, current_user: dict):
+def get_crews(event: dict, current_user: dict, origin=None):
     """Получить список экипажей"""
     conn = get_db_connection()
     cur = conn.cursor()
@@ -131,7 +138,7 @@ def get_crews(event: dict, current_user: dict):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(origin),
             'body': json.dumps({
                 'crews': [dict(crew) for crew in crews]
             }, default=str),
@@ -141,7 +148,7 @@ def get_crews(event: dict, current_user: dict):
         cur.close()
         conn.close()
 
-def create_crew(event: dict, current_user: dict):
+def create_crew(event: dict, current_user: dict, origin=None):
     """Создать новый экипаж"""
     body = json.loads(event.get('body', '{}'))
     callsign = sanitize_string(body.get('callsign', '').strip(), 50)
@@ -149,7 +156,7 @@ def create_crew(event: dict, current_user: dict):
     second_member_id = body.get('second_member_id')
     
     if not callsign:
-        return error_response(400, 'Callsign is required')
+        return error_response(400, 'Callsign is required', origin)
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -189,7 +196,7 @@ def create_crew(event: dict, current_user: dict):
         cur.close()
         conn.close()
 
-def update_crew(event: dict, current_user: dict):
+def update_crew(event: dict, current_user: dict, origin=None):
     """Обновить экипаж"""
     body = json.loads(event.get('body', '{}'))
     crew_id = body.get('crew_id')
@@ -246,7 +253,7 @@ def update_crew(event: dict, current_user: dict):
         cur.close()
         conn.close()
 
-def delete_crew(event: dict, current_user: dict):
+def delete_crew(event: dict, current_user: dict, origin=None):
     """Удалить экипаж"""
     params = event.get('queryStringParameters') or {}
     crew_id = params.get('crew_id')
@@ -283,20 +290,20 @@ def delete_crew(event: dict, current_user: dict):
         cur.close()
         conn.close()
 
-def error_response(status_code: int, message: str):
+def error_response(status_code: int, message: str, origin=None):
     """Формирование ответа с ошибкой"""
     return {
         'statusCode': status_code,
-        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+        'headers': get_cors_headers(origin),
         'body': json.dumps({'error': message}),
         'isBase64Encoded': False
     }
 
-def success_response(data: dict):
+def success_response(data: dict, origin=None):
     """Формирование успешного ответа"""
     return {
         'statusCode': 200,
-        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+        'headers': get_cors_headers(origin),
         'body': json.dumps(data),
         'isBase64Encoded': False
     }

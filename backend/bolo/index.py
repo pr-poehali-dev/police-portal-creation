@@ -5,6 +5,18 @@ import psycopg2
 from datetime import datetime
 from security import sanitize_string
 
+def get_cors_headers(origin=None):
+    """Возвращает CORS headers с правильным Origin"""
+    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    return {
+        'Access-Control-Allow-Origin': allowed_origin,
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '86400',
+        'Content-Type': 'application/json'
+    }
+
 def extract_token_from_cookie(cookies: str) -> str:
     """Извлечение токена из Cookie header"""
     if not cookies:
@@ -20,17 +32,13 @@ def handler(event: dict, context) -> dict:
     '''API для управления ориентировками BOLO'''
     
     method = event.get('httpMethod', 'GET')
+    headers = event.get('headers', {})
+    origin = headers.get('Origin') or headers.get('origin')
     
     if method == 'OPTIONS':
         return {
             'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
-                'Access-Control-Allow-Credentials': 'true',
-                'Access-Control-Max-Age': '86400'
-            },
+            'headers': get_cors_headers(origin),
             'body': '',
             'isBase64Encoded': False
         }
@@ -40,19 +48,18 @@ def handler(event: dict, context) -> dict:
         if not dsn:
             return {
                 'statusCode': 500,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({'error': 'DATABASE_URL not configured'}),
                 'isBase64Encoded': False
             }
         
-        headers = event.get('headers', {})
         cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
         token = extract_token_from_cookie(cookies)
         
         if not token:
             return {
                 'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({'error': 'Unauthorized'}),
                 'isBase64Encoded': False
             }
@@ -76,7 +83,7 @@ def handler(event: dict, context) -> dict:
             conn.close()
             return {
                 'statusCode': 401,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({'error': 'Invalid token'}),
                 'isBase64Encoded': False
             }
@@ -110,7 +117,7 @@ def handler(event: dict, context) -> dict:
             
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps(bolos),
                 'isBase64Encoded': False
             }
@@ -128,7 +135,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'Invalid type'}),
                     'isBase64Encoded': False
                 }
@@ -138,7 +145,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'Main info is required'}),
                     'isBase64Encoded': False
                 }
@@ -158,7 +165,7 @@ def handler(event: dict, context) -> dict:
             
             return {
                 'statusCode': 201,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({
                     'id': new_id,
                     'type': bolo_type,
@@ -179,7 +186,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'BOLO ID is required'}),
                     'isBase64Encoded': False
                 }
@@ -194,7 +201,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'Invalid type'}),
                     'isBase64Encoded': False
                 }
@@ -215,7 +222,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 404,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'BOLO not found'}),
                     'isBase64Encoded': False
                 }
@@ -240,7 +247,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'BOLO ID is required'}),
                     'isBase64Encoded': False
                 }
@@ -252,7 +259,7 @@ def handler(event: dict, context) -> dict:
                 conn.close()
                 return {
                     'statusCode': 404,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(origin),
                     'body': json.dumps({'error': 'BOLO not found'}),
                     'isBase64Encoded': False
                 }
