@@ -16,6 +16,7 @@ import { auth, User } from "@/lib/auth";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { crewsApi, Crew as ApiCrew } from "@/lib/crews-api";
 import { boloApi, Bolo } from "@/lib/bolo-api";
+import { notificationsApi, Notification } from "@/lib/notifications-api";
 
 type CrewStatus = "available" | "busy" | "delay" | "need_help";
 
@@ -38,7 +39,7 @@ const Index = () => {
     second_member_id: null as number | null
   });
 
-  const [notifications, setNotifications] = useState<Array<{id: string; message: string; time: string; type: string}>>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [locationInput, setLocationInput] = useState('');
@@ -80,6 +81,7 @@ const Index = () => {
     if (isAuthenticated) {
       loadCrews();
       loadBolos();
+      loadNotifications();
     }
   }, [isAuthenticated]);
 
@@ -122,6 +124,15 @@ const Index = () => {
       toast.error('Ошибка загрузки ориентировок');
     } finally {
       setBolosLoading(false);
+    }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const data = await notificationsApi.getAll();
+      setNotifications(data);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
     }
   };
 
@@ -183,18 +194,17 @@ const Index = () => {
     setShowBoloDialog(true);
   };
 
-  const addNotification = (message: string, type: "info" | "warning" | "error") => {
-    const newNotif = {
-      id: String(Date.now()),
-      message,
-      time: "только что",
-      type
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-    
-    const audio = new Audio();
-    audio.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFA==";
-    audio.play().catch(() => {});
+  const addNotification = async (message: string, type: "info" | "warning" | "error" | "success") => {
+    try {
+      await notificationsApi.create({ message, type });
+      await loadNotifications();
+      
+      const audio = new Audio();
+      audio.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFA==";
+      audio.play().catch(() => {});
+    } catch (error) {
+      console.error('Failed to create notification:', error);
+    }
   };
 
   const handleCreateCrew = async () => {
@@ -205,13 +215,7 @@ const Index = () => {
         second_member_id: createForm.second_member_id || undefined
       });
       
-      const createNotification = {
-        id: Date.now().toString(),
-        message: `Экипаж ${createForm.callsign} создан пользователем ${user?.full_name}`,
-        time: 'Только что',
-        type: 'success'
-      };
-      setNotifications(prev => [createNotification, ...prev]);
+      await addNotification(`Экипаж ${createForm.callsign} создан`, 'success');
       
       toast.success("Экипаж успешно создан", {
         description: `Позывной: ${createForm.callsign}`
@@ -545,9 +549,9 @@ const Index = () => {
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative text-white hover:text-white hover:bg-white/10">
                     <Icon name="Bell" size={20} />
-                    {notifications.length > 0 && (
+                    {notifications.filter(n => !n.is_read).length > 0 && (
                       <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-white text-xs rounded-full flex items-center justify-center animate-pulse-soft">
-                        {notifications.length}
+                        {notifications.filter(n => !n.is_read).length}
                       </span>
                     )}
                   </Button>
@@ -570,30 +574,67 @@ const Index = () => {
                         <div 
                           key={notif.id} 
                           className={`p-4 rounded-lg border-l-4 ${
+                            notif.is_read ? "opacity-60" : ""
+                          } ${
                             notif.type === "error" ? "border-red-500 bg-red-50" :
                             notif.type === "warning" ? "border-orange-500 bg-orange-50" :
+                            notif.type === "success" ? "border-green-500 bg-green-50" :
                             "border-blue-500 bg-blue-50"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
                               <p className="text-sm font-medium text-foreground">{notif.message}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(notif.created_at).toLocaleString('ru-RU', { 
+                                  day: '2-digit', 
+                                  month: '2-digit', 
+                                  year: 'numeric',
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </p>
                             </div>
-                            <Icon 
-                              name={notif.type === "error" ? "AlertOctagon" : notif.type === "warning" ? "AlertTriangle" : "Info"} 
-                              size={18} 
-                              className={notif.type === "error" ? "text-red-600" : notif.type === "warning" ? "text-orange-600" : "text-blue-600"}
-                            />
+                            <div className="flex items-center gap-2">
+                              <Icon 
+                                name={
+                                  notif.type === "error" ? "AlertOctagon" : 
+                                  notif.type === "warning" ? "AlertTriangle" : 
+                                  notif.type === "success" ? "CheckCircle" :
+                                  "Info"
+                                } 
+                                size={18} 
+                                className={
+                                  notif.type === "error" ? "text-red-600" : 
+                                  notif.type === "warning" ? "text-orange-600" : 
+                                  notif.type === "success" ? "text-green-600" :
+                                  "text-blue-600"
+                                }
+                              />
+                              {!notif.is_read && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await notificationsApi.markAsRead(notif.id);
+                                      await loadNotifications();
+                                    } catch (error) {
+                                      console.error('Failed to mark as read:', error);
+                                    }
+                                  }}
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  <Icon name="Check" size={14} />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
                     )}
                   </div>
                   <div className="flex justify-end gap-3">
-                    <Button variant="outline" onClick={() => setNotifications([])}>
-                      Очистить всё
-                    </Button>
                     <Button onClick={() => setShowNotifications(false)}>
                       Закрыть
                     </Button>
