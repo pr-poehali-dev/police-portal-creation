@@ -39,7 +39,7 @@ export const auth = {
     const result = await response.json();
     
     if (rememberMe) {
-      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      const expiresAt = Date.now() + 60 * 60 * 1000;
       localStorage.setItem('auth_token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
       localStorage.setItem('auth_expires', expiresAt.toString());
@@ -72,7 +72,7 @@ export const auth = {
     const result = await response.json();
     
     if (rememberMe) {
-      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      const expiresAt = Date.now() + 60 * 60 * 1000;
       localStorage.setItem('auth_token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
       localStorage.setItem('auth_expires', expiresAt.toString());
