@@ -66,16 +66,37 @@ def handler(event: dict, context) -> dict:
         return error_response(403, 'Access denied. Admin or Manager role required.', origin)
     
     try:
-        if method == 'GET':
-            return get_users(event, current_user, origin)
-        elif method == 'POST':
-            return update_user(event, current_user, origin)
-        elif method == 'DELETE':
-            return delete_user(event, current_user, origin)
+        params = event.get('queryStringParameters') or {}
+        resource = params.get('resource', 'users')
+        
+        if resource == 'logs':
+            # Работа с логами активности
+            request_context = event.get('requestContext', {})
+            identity = request_context.get('identity', {})
+            client_ip = identity.get('sourceIp', '0.0.0.0')
+            
+            if method == 'GET':
+                return get_logs(event, current_user, origin)
+            elif method == 'POST':
+                return create_log(event, current_user, client_ip, origin)
+            elif method == 'DELETE':
+                return delete_logs(event, current_user, origin)
+            else:
+                return error_response(405, 'Method not allowed', origin)
         else:
-            return error_response(405, 'Method not allowed', origin)
+            # Работа с пользователями
+            if method == 'GET':
+                return get_users(event, current_user, origin)
+            elif method == 'POST':
+                return update_user(event, current_user, origin)
+            elif method == 'DELETE':
+                return delete_user(event, current_user, origin)
+            else:
+                return error_response(405, 'Method not allowed', origin)
     except Exception as e:
         print(f"ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return error_response(500, str(e), origin)
 
 def get_db_connection():
@@ -300,3 +321,171 @@ def success_response(data: dict, origin=None):
         'body': json.dumps(data),
         'isBase64Encoded': False
     }
+
+def get_logs(event: dict, current_user: dict, origin=None):
+    """Получить логи активности с фильтрацией и поиском"""
+    params = event.get('queryStringParameters') or {}
+    search = params.get('search', '').strip()
+    action_type = params.get('action_type', '').strip()
+    user_filter = params.get('user', '').strip()
+    sort_by = params.get('sort_by', 'created_at')
+    sort_order = params.get('sort_order', 'DESC')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        query = """
+            SELECT id, user_id, user_name, action_type, action_description, 
+                   target_type, target_id, ip_address, created_at
+            FROM t_p77465986_police_portal_creati.activity_logs
+            WHERE created_at > NOW() - INTERVAL '72 hours'
+        """
+        query_params = []
+        
+        if search:
+            query += " AND (action_description ILIKE %s OR user_name ILIKE %s)"
+            query_params.extend([f'%{search}%', f'%{search}%'])
+        
+        if action_type:
+            query += " AND action_type = %s"
+            query_params.append(action_type)
+        
+        if user_filter:
+            query += " AND user_name ILIKE %s"
+            query_params.append(f'%{user_filter}%')
+        
+        allowed_sorts = ['created_at', 'user_name', 'action_type']
+        if sort_by not in allowed_sorts:
+            sort_by = 'created_at'
+        if sort_order not in ['ASC', 'DESC']:
+            sort_order = 'DESC'
+        
+        query += f" ORDER BY {sort_by} {sort_order} LIMIT 500"
+        
+        cur.execute(query, query_params)
+        logs = cur.fetchall()
+        
+        cur.execute("""
+            SELECT DISTINCT action_type 
+            FROM t_p77465986_police_portal_creati.activity_logs
+            WHERE created_at > NOW() - INTERVAL '72 hours'
+            ORDER BY action_type
+        """)
+        action_types = [row['action_type'] for row in cur.fetchall()]
+        
+        return {
+            'statusCode': 200,
+            'headers': get_cors_headers(origin),
+            'body': json.dumps({
+                'logs': [dict(log) for log in logs],
+                'action_types': action_types,
+                'total': len(logs)
+            }, default=str),
+            'isBase64Encoded': False
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+def create_log(event: dict, current_user: dict, client_ip: str, origin=None):
+    """Создать запись в логе"""
+    body = json.loads(event.get('body', '{}'))
+    action_type = body.get('action_type', '').strip()
+    action_description = body.get('action_description', '').strip()
+    target_type = body.get('target_type')
+    target_id = body.get('target_id')
+    
+    if not action_type or not action_description:
+        return error_response(400, 'action_type and action_description are required', origin)
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute(
+            """INSERT INTO t_p77465986_police_portal_creati.activity_logs 
+               (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
+               RETURNING id, created_at""",
+            (current_user['id'], current_user['full_name'], action_type, action_description, 
+             target_type, target_id, client_ip)
+        )
+        result = cur.fetchone()
+        conn.commit()
+        
+        return {
+            'statusCode': 201,
+            'headers': get_cors_headers(origin),
+            'body': json.dumps({
+                'id': result['id'],
+                'created_at': result['created_at'].isoformat()
+            }),
+            'isBase64Encoded': False
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+def delete_logs(event: dict, current_user: dict, origin=None):
+    """Удалить логи (только для admin и manager)"""
+    params = event.get('queryStringParameters') or {}
+    log_id = params.get('log_id')
+    delete_all = params.get('delete_all') == 'true'
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        if delete_all:
+            cur.execute("SELECT COUNT(*) as count FROM t_p77465986_police_portal_creati.activity_logs")
+            count_before = cur.fetchone()['count']
+            
+            cur.execute("TRUNCATE TABLE t_p77465986_police_portal_creati.activity_logs RESTART IDENTITY")
+            conn.commit()
+            
+            cur.execute(
+                """INSERT INTO t_p77465986_police_portal_creati.activity_logs 
+                   (user_id, user_name, action_type, action_description, ip_address)
+                   VALUES (%s, %s, 'system', %s, '0.0.0.0')""",
+                (current_user['id'], current_user['full_name'], 
+                 f"Удалены все логи ({count_before} записей)")
+            )
+            conn.commit()
+            
+            return {
+                'statusCode': 200,
+                'headers': get_cors_headers(origin),
+                'body': json.dumps({'message': f'Deleted {count_before} logs', 'deleted': count_before}),
+                'isBase64Encoded': False
+            }
+        
+        elif log_id:
+            cur.execute(
+                "SELECT action_description FROM t_p77465986_police_portal_creati.activity_logs WHERE id = %s",
+                (log_id,)
+            )
+            log_data = cur.fetchone()
+            
+            if not log_data:
+                return error_response(404, 'Log not found', origin)
+            
+            cur.execute(
+                "UPDATE t_p77465986_police_portal_creati.activity_logs SET action_description = '[УДАЛЕНО]' WHERE id = %s",
+                (log_id,)
+            )
+            conn.commit()
+            
+            return {
+                'statusCode': 200,
+                'headers': get_cors_headers(origin),
+                'body': json.dumps({'message': 'Log deleted'}),
+                'isBase64Encoded': False
+            }
+        
+        else:
+            return error_response(400, 'log_id or delete_all parameter required', origin)
+    
+    finally:
+        cur.close()
+        conn.close()
