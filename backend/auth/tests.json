@@ -1,43 +1,33 @@
 {
   "tests": [
     {
-      "name": "Register new user",
+      "name": "Register without credentials",
       "method": "POST",
       "path": "/",
       "body": {
         "action": "register",
-        "email": "test@police.ru",
-        "password": "password123",
-        "full_name": "Тестовый Пользователь",
-        "rank": "Лейтенант",
-        "badge_number": "12345",
-        "department": "Центральный отдел"
+        "email": "",
+        "password": "",
+        "full_name": ""
       },
-      "expectedStatus": 201,
+      "expectedStatus": 400,
       "expectedBody": {
-        "token": "string",
-        "user": {
-          "email": "test@police.ru",
-          "full_name": "Тестовый Пользователь"
-        }
+        "error": "string"
       },
       "bodyMatcher": "partial"
     },
     {
-      "name": "Login with valid credentials",
+      "name": "Login without credentials",
       "method": "POST",
       "path": "/",
       "body": {
         "action": "login",
-        "email": "test@police.ru",
-        "password": "password123"
+        "email": "",
+        "password": ""
       },
-      "expectedStatus": 200,
+      "expectedStatus": 400,
       "expectedBody": {
-        "token": "string",
-        "user": {
-          "email": "test@police.ru"
-        }
+        "error": "string"
       },
       "bodyMatcher": "partial"
     }

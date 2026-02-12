@@ -50,6 +50,7 @@ def handler(event: dict, context) -> dict:
                 'isBase64Encoded': False
             }
     except Exception as e:
+        print(f"ERROR handler: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -107,7 +108,8 @@ def handle_register(body: dict) -> dict:
     cur = conn.cursor()
     
     try:
-        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+        email_escaped = email.replace("'", "''")
+        cur.execute(f"SELECT id FROM users WHERE email = '{email_escaped}'")
         if cur.fetchone():
             return {
                 'statusCode': 400,
@@ -117,19 +119,19 @@ def handle_register(body: dict) -> dict:
             }
         
         password_hash = hash_password(password)
+        full_name_escaped = full_name.replace("'", "''")
+        password_hash_escaped = password_hash.replace("'", "''")
         
         cur.execute(
-            """INSERT INTO users (email, password_hash, full_name)
-               VALUES (%s, %s, %s) RETURNING id, email, full_name""",
-            (email, password_hash, full_name)
+            f"""INSERT INTO users (email, password_hash, full_name)
+               VALUES ('{email_escaped}', '{password_hash_escaped}', '{full_name_escaped}') RETURNING id, email, full_name"""
         )
         user = cur.fetchone()
         user_id_internal = user['id']
         
         generated_user_id = str(user_id_internal).zfill(5)
         cur.execute(
-            "UPDATE users SET user_id = %s WHERE id = %s",
-            (generated_user_id, user_id_internal)
+            f"UPDATE users SET user_id = '{generated_user_id}' WHERE id = {user_id_internal}"
         )
         conn.commit()
         
@@ -137,11 +139,10 @@ def handle_register(body: dict) -> dict:
         
         token = generate_token()
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = datetime.now() + timedelta(days=30)
+        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
         
         cur.execute(
-            "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
-            (user['id'], token_hash, expires_at)
+            f"INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ({user['id']}, '{token_hash}', '{expires_at}')"
         )
         conn.commit()
         
@@ -152,6 +153,14 @@ def handle_register(body: dict) -> dict:
                 'token': token,
                 'user': dict(user)
             }),
+            'isBase64Encoded': False
+        }
+    except Exception as e:
+        print(f"ERROR handle_register: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
     finally:
@@ -178,14 +187,12 @@ def handle_login(body: dict) -> dict:
         if login_input.isdigit() and len(login_input) <= 5:
             user_id = login_input.zfill(5)
             cur.execute(
-                "SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE user_id = %s",
-                (user_id,)
+                f"SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE user_id = '{user_id}'"
             )
         else:
-            email = login_input.lower()
+            email = login_input.lower().replace("'", "''")
             cur.execute(
-                "SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE email = %s",
-                (email,)
+                f"SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE email = '{email}'"
             )
         
         user = cur.fetchone()
@@ -208,11 +215,10 @@ def handle_login(body: dict) -> dict:
         
         token = generate_token()
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = datetime.now() + timedelta(days=30)
+        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
         
         cur.execute(
-            "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
-            (user['id'], token_hash, expires_at)
+            f"INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ({user['id']}, '{token_hash}', '{expires_at}')"
         )
         conn.commit()
         
@@ -226,6 +232,14 @@ def handle_login(body: dict) -> dict:
                 'token': token,
                 'user': user_data
             }),
+            'isBase64Encoded': False
+        }
+    except Exception as e:
+        print(f"ERROR handle_login: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
     finally:
@@ -249,11 +263,10 @@ def handle_verify(token: str) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cur.execute(
-            """SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.is_active
+            f"""SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.is_active
                FROM users u
                JOIN sessions s ON u.id = s.user_id
-               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
-            (token_hash,)
+               WHERE s.token_hash = '{token_hash}' AND s.expires_at > NOW()"""
         )
         user = cur.fetchone()
         
@@ -269,6 +282,14 @@ def handle_verify(token: str) -> dict:
             'statusCode': 200,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'user': dict(user)}),
+            'isBase64Encoded': False
+        }
+    except Exception as e:
+        print(f"ERROR handle_verify: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }
     finally:

@@ -32,7 +32,7 @@ def handler(event: dict, context) -> dict:
     
     current_user = verify_token(token)
     if not current_user:
-        print(f"DEBUG: Token verification failed")
+        print(f"DEBUG: Token verification failed for token: {token[:10]}...")
         return error_response(401, 'Invalid token')
     
     print(f"DEBUG: User {current_user.get('email')} with role {current_user.get('role')}")
@@ -50,6 +50,7 @@ def handler(event: dict, context) -> dict:
         else:
             return error_response(405, 'Method not allowed')
     except Exception as e:
+        print(f"ERROR: {str(e)}")
         return error_response(500, str(e))
 
 def get_db_connection():
@@ -68,15 +69,17 @@ def verify_token(token: str):
     try:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
-        cur.execute(
-            """SELECT u.id, u.email, u.full_name, u.role, u.is_active
+        query = f"""SELECT u.id, u.email, u.full_name, u.role, u.is_active
                FROM users u
                JOIN sessions s ON u.id = s.user_id
-               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
-            (token_hash,)
-        )
+               WHERE s.token_hash = '{token_hash}' AND s.expires_at > NOW()"""
+        
+        cur.execute(query)
         user = cur.fetchone()
         return dict(user) if user else None
+    except Exception as e:
+        print(f"ERROR verify_token: {str(e)}")
+        return None
     finally:
         cur.close()
         conn.close()
@@ -91,21 +94,16 @@ def get_users(event: dict, current_user: dict):
     
     try:
         if status == 'pending':
-            cur.execute(
-                """SELECT id, user_id, email, full_name, role, is_active, created_at
+            query = """SELECT id, user_id, email, full_name, role, is_active, created_at
                    FROM users WHERE is_active = false ORDER BY created_at DESC"""
-            )
         elif status == 'active':
-            cur.execute(
-                """SELECT id, user_id, email, full_name, role, is_active, created_at
+            query = """SELECT id, user_id, email, full_name, role, is_active, created_at
                    FROM users WHERE is_active = true ORDER BY user_id"""
-            )
         else:
-            cur.execute(
-                """SELECT id, user_id, email, full_name, role, is_active, created_at
+            query = """SELECT id, user_id, email, full_name, role, is_active, created_at
                    FROM users ORDER BY created_at DESC"""
-            )
         
+        cur.execute(query)
         users = cur.fetchall()
         
         return {
@@ -117,6 +115,9 @@ def get_users(event: dict, current_user: dict):
             }, default=str),
             'isBase64Encoded': False
         }
+    except Exception as e:
+        print(f"ERROR get_users: {str(e)}")
+        return error_response(500, str(e))
     finally:
         cur.close()
         conn.close()
@@ -135,31 +136,30 @@ def update_user(event: dict, current_user: dict):
     
     try:
         if action == 'activate':
-            cur.execute("UPDATE users SET is_active = true WHERE id = %s", (user_id,))
+            query = f"UPDATE users SET is_active = true WHERE id = {user_id}"
+            cur.execute(query)
             conn.commit()
             return success_response({'message': 'User activated successfully'})
         
         elif action == 'deactivate':
-            cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
+            query = f"UPDATE users SET is_active = false WHERE id = {user_id}"
+            cur.execute(query)
             conn.commit()
             return success_response({'message': 'User deactivated successfully'})
         
         elif action == 'update':
             updates = []
-            params = []
             
             if 'full_name' in body:
-                updates.append("full_name = %s")
-                params.append(body['full_name'])
+                full_name = body['full_name'].replace("'", "''")
+                updates.append(f"full_name = '{full_name}'")
             if 'role' in body and body['role'] in ['user', 'moderator', 'admin', 'manager']:
-                updates.append("role = %s")
-                params.append(body['role'])
+                updates.append(f"role = '{body['role']}'")
             
             if updates:
                 updates.append("updated_at = NOW()")
-                params.append(user_id)
-                query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
-                cur.execute(query, params)
+                query = f"UPDATE users SET {', '.join(updates)} WHERE id = {user_id}"
+                cur.execute(query)
                 conn.commit()
                 return success_response({'message': 'User updated successfully'})
             else:
@@ -168,6 +168,9 @@ def update_user(event: dict, current_user: dict):
         else:
             return error_response(400, 'Invalid action')
     
+    except Exception as e:
+        print(f"ERROR update_user: {str(e)}")
+        return error_response(500, str(e))
     finally:
         cur.close()
         conn.close()
@@ -187,11 +190,14 @@ def delete_user(event: dict, current_user: dict):
     cur = conn.cursor()
     
     try:
-        cur.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
-        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        cur.execute(f"DELETE FROM sessions WHERE user_id = {user_id}")
+        cur.execute(f"DELETE FROM users WHERE id = {user_id}")
         conn.commit()
         
         return success_response({'message': 'User deleted successfully'})
+    except Exception as e:
+        print(f"ERROR delete_user: {str(e)}")
+        return error_response(500, str(e))
     finally:
         cur.close()
         conn.close()
