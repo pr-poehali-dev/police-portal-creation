@@ -688,7 +688,7 @@ const Index = () => {
             <CardHeader className="pb-2">
               <CardDescription className="text-yellow-100">Занятые экипажи</CardDescription>
               <CardTitle className="text-4xl font-bold">
-                {crews.filter(c => c.status === "patrol").length}
+                {crews.filter(c => c.status === "patrol" || c.status === "responding").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -699,17 +699,17 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-600 to-orange-700 text-white border-0">
+          <Card className="bg-gradient-to-br from-red-600 to-red-700 text-white border-0">
             <CardHeader className="pb-2">
-              <CardDescription className="text-orange-100">Задержка на ситуации</CardDescription>
+              <CardDescription className="text-red-100">Запрос поддержки</CardDescription>
               <CardTitle className="text-4xl font-bold">
-                {crews.filter(c => c.status === "responding").length}
+                {crews.filter(c => c.status === "offline").length}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Icon name="AlertTriangle" size={16} />
-                <span className="text-sm">Требуют внимания</span>
+                <Icon name="AlertOctagon" size={16} />
+                <span className="text-sm">Требуют помощи</span>
               </div>
             </CardContent>
           </Card>
