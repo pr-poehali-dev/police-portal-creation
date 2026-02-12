@@ -218,13 +218,24 @@ const Index = () => {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" name="email" type="email" placeholder="user@police.ru" required />
+                    <Input id="login-email" name="email" type="email" placeholder="user@demo.ru" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Пароль</Label>
-                    <Input id="login-password" name="password" type="password" placeholder="Введите пароль" required />
+                    <Input id="login-password" name="password" type="password" placeholder="demo123" required />
                   </div>
                   <Button type="submit" className="w-full">Войти</Button>
+                  
+                  <div className="mt-4 p-3 bg-muted rounded-lg text-xs space-y-1.5">
+                    <p className="font-semibold text-foreground mb-2">Тестовые учетные записи:</p>
+                    <div className="space-y-1">
+                      <p><span className="font-medium">Пользователь:</span> user@demo.ru</p>
+                      <p><span className="font-medium">Модератор:</span> moderator@demo.ru</p>
+                      <p><span className="font-medium">Администратор:</span> admin@demo.ru</p>
+                      <p><span className="font-medium">Менеджер:</span> manager@demo.ru</p>
+                      <p className="pt-1 text-muted-foreground">Пароль для всех: <span className="font-medium">demo123</span></p>
+                    </div>
+                  </div>
                 </form>
               </TabsContent>
               <TabsContent value="register">
