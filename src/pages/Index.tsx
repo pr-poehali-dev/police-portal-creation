@@ -501,78 +501,118 @@ const Index = () => {
         {activeTab === "my-crew" && (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Мой экипаж</h2>
-            <Card className="mb-6">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-2xl mb-2">А-101</CardTitle>
-                    <CardDescription className="flex items-center gap-2">
-                      <Icon name="MapPin" size={14} />
-                      Центральный район, ул. Ленина
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline" className="gap-1">
-                    <Icon name="Clock" size={14} />
-                    Занят
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <h3 className="font-semibold mb-3">Состав экипажа</h3>
-                  <div className="grid gap-3">
-                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                      <Avatar>
-                        <AvatarFallback className="bg-primary text-white">ИИ</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">Иванов Иван Иванович</p>
-                        <p className="text-sm text-muted-foreground">Старший лейтенант • Командир</p>
+            {(() => {
+              const myCrew = crews.find(c => c.members.some(m => m.user_id === user?.id));
+              
+              if (!myCrew) {
+                return (
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <Icon name="Users" size={48} className="mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-lg font-medium mb-2">Вы не состоите в экипаже</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Создайте новый экипаж или дождитесь приглашения
+                      </p>
+                      <Button onClick={() => setActiveTab('crews')}>
+                        Перейти к экипажам
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              return (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-2xl mb-2">{myCrew.callsign}</CardTitle>
+                        <CardDescription className="flex items-center gap-2">
+                          <Icon name="MapPin" size={14} />
+                          {myCrew.location || 'Местоположение не указано'}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="gap-1">
+                          <Icon name={statusConfig[myCrew.status].icon} size={14} />
+                          {statusConfig[myCrew.status].label}
+                        </Badge>
+                        {canManageCrew(myCrew) && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteCrew(myCrew.id)}
+                          >
+                            <Icon name="Trash2" size={16} className="mr-1" />
+                            Удалить
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                      <Avatar>
-                        <AvatarFallback className="bg-secondary text-white">ПП</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">Петров Петр Петрович</p>
-                        <p className="text-sm text-muted-foreground">Лейтенант • Водитель</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <h3 className="font-semibold mb-3">Состав экипажа</h3>
+                      <div className="grid gap-3">
+                        {myCrew.members.map((member, idx) => (
+                          <div key={idx} className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                            <Avatar>
+                              <AvatarFallback className="bg-primary text-white">
+                                {member.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{member.full_name}</p>
+                              <p className="text-sm text-muted-foreground">ID: {member.user_id_str}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <div>
-                  <h3 className="font-semibold mb-3">Изменить статус</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" className="gap-2">
-                      <Icon name="CheckCircle" size={16} />
-                      Доступен
-                    </Button>
-                    <Button variant="default" className="gap-2">
-                      <Icon name="Clock" size={16} />
-                      Занят
-                    </Button>
-                    <Button variant="outline" className="gap-2">
-                      <Icon name="AlertTriangle" size={16} />
-                      Задержка
-                    </Button>
-                    <Button variant="outline" className="gap-2">
-                      <Icon name="AlertOctagon" size={16} />
-                      Поддержка
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold mb-3">Обновить местоположение</h3>
-                  <div className="flex gap-2">
-                    <Input placeholder="Введите новое местоположение" />
-                    <Button>Обновить</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    {canManageCrew(myCrew) && (
+                      <div>
+                        <h3 className="font-semibold mb-3">Изменить статус</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Button 
+                            variant={myCrew.status === "active" ? "default" : "outline"} 
+                            className="gap-2"
+                            onClick={() => handleStatusChange(myCrew.id, "active")}
+                          >
+                            <Icon name="CheckCircle" size={16} />
+                            Доступен
+                          </Button>
+                          <Button 
+                            variant={myCrew.status === "patrol" ? "default" : "outline"} 
+                            className="gap-2"
+                            onClick={() => handleStatusChange(myCrew.id, "patrol")}
+                          >
+                            <Icon name="Clock" size={16} />
+                            Занят
+                          </Button>
+                          <Button 
+                            variant={myCrew.status === "responding" ? "default" : "outline"} 
+                            className="gap-2"
+                            onClick={() => handleStatusChange(myCrew.id, "responding")}
+                          >
+                            <Icon name="AlertTriangle" size={16} />
+                            Задержка
+                          </Button>
+                          <Button 
+                            variant={myCrew.status === "offline" ? "default" : "outline"} 
+                            className="gap-2"
+                            onClick={() => handleStatusChange(myCrew.id, "offline")}
+                          >
+                            <Icon name="AlertOctagon" size={16} />
+                            Поддержка
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </div>
         )}
 
