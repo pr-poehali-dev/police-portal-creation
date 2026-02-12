@@ -960,8 +960,9 @@ const Index = () => {
         )}
 
         {activeTab === "profile" && (
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Профиль</h2>
+          <div className="max-w-2xl mx-auto space-y-6">
+            <h2 className="text-2xl md:text-3xl font-bold">Профиль</h2>
+            
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-4">
@@ -990,6 +991,100 @@ const Index = () => {
                     <Label className="text-muted-foreground">Текущий экипаж</Label>
                     <p className="font-medium">{crews.find(c => c.members.some(m => m.user_id === user?.id))?.callsign || 'Не состоите в экипаже'}</p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Изменить данные</CardTitle>
+                <CardDescription>Обновите своё имя или пароль</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="profile-name">Имя и фамилия</Label>
+                    <Input 
+                      id="profile-name" 
+                      defaultValue={user?.full_name}
+                      placeholder="Иван Иванов"
+                    />
+                  </div>
+                  <Button 
+                    onClick={async () => {
+                      const input = document.getElementById('profile-name') as HTMLInputElement;
+                      const newName = input.value.trim();
+                      if (!newName) {
+                        toast.error('Введите имя');
+                        return;
+                      }
+                      try {
+                        const result = await auth.updateProfile({ full_name: newName });
+                        setUser(result.user);
+                        toast.success('Имя обновлено');
+                      } catch (error) {
+                        toast.error('Ошибка', {
+                          description: error instanceof Error ? error.message : 'Не удалось обновить'
+                        });
+                      }
+                    }}
+                  >
+                    Сохранить имя
+                  </Button>
+                </div>
+
+                <div className="pt-6 border-t space-y-4">
+                  <h3 className="font-semibold">Изменить пароль</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="current-password">Текущий пароль</Label>
+                    <Input 
+                      id="current-password" 
+                      type="password"
+                      placeholder="Введите текущий пароль"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">Новый пароль</Label>
+                    <Input 
+                      id="new-password" 
+                      type="password"
+                      placeholder="Минимум 6 символов"
+                      minLength={6}
+                    />
+                  </div>
+                  <Button 
+                    onClick={async () => {
+                      const currentInput = document.getElementById('current-password') as HTMLInputElement;
+                      const newInput = document.getElementById('new-password') as HTMLInputElement;
+                      const currentPassword = currentInput.value;
+                      const newPassword = newInput.value;
+                      
+                      if (!currentPassword) {
+                        toast.error('Введите текущий пароль');
+                        return;
+                      }
+                      if (!newPassword || newPassword.length < 6) {
+                        toast.error('Новый пароль должен быть минимум 6 символов');
+                        return;
+                      }
+                      
+                      try {
+                        await auth.updateProfile({ 
+                          current_password: currentPassword,
+                          new_password: newPassword 
+                        });
+                        currentInput.value = '';
+                        newInput.value = '';
+                        toast.success('Пароль обновлён');
+                      } catch (error) {
+                        toast.error('Ошибка', {
+                          description: error instanceof Error ? error.message : 'Не удалось обновить пароль'
+                        });
+                      }
+                    }}
+                  >
+                    Изменить пароль
+                  </Button>
                 </div>
               </CardContent>
             </Card>

@@ -44,6 +44,11 @@ def handler(event: dict, context) -> dict:
             token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
             token = token.replace('Bearer ', '').replace('bearer ', '')
             return handle_verify(token)
+        elif action == 'update_profile':
+            headers = event.get('headers', {})
+            token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+            token = token.replace('Bearer ', '').replace('bearer ', '')
+            return handle_update_profile(body, token)
         else:
             return {
                 'statusCode': 400,
@@ -288,6 +293,101 @@ def handle_verify(token: str) -> dict:
         }
     except Exception as e:
         print(f"ERROR handle_verify: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': str(e)}),
+            'isBase64Encoded': False
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+def handle_update_profile(body: dict, token: str) -> dict:
+    """Обновление профиля пользователя"""
+    if not token:
+        return {
+            'statusCode': 401,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Token required'}),
+            'isBase64Encoded': False
+        }
+    
+    full_name = body.get('full_name', '').strip()
+    current_password = body.get('current_password', '')
+    new_password = body.get('new_password', '')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        cur.execute(
+            f"""SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.password_hash
+               FROM users u
+               JOIN sessions s ON u.id = s.user_id
+               WHERE s.token_hash = '{token_hash}' AND s.expires_at > NOW()"""
+        )
+        user = cur.fetchone()
+        
+        if not user:
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Invalid or expired token'}),
+                'isBase64Encoded': False
+            }
+        
+        user_id = user['id']
+        updates = []
+        
+        if full_name:
+            full_name_escaped = full_name.replace("'", "''")
+            updates.append(f"full_name = '{full_name_escaped}'")
+        
+        if current_password and new_password:
+            if not verify_password(current_password, user['password_hash']):
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Неверный текущий пароль'}),
+                    'isBase64Encoded': False
+                }
+            
+            if len(new_password) < 6:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Новый пароль должен быть минимум 6 символов'}),
+                    'isBase64Encoded': False
+                }
+            
+            password_hash = hash_password(new_password)
+            password_hash_escaped = password_hash.replace("'", "''")
+            updates.append(f"password_hash = '{password_hash_escaped}'")
+        
+        if not updates:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'No fields to update'}),
+                'isBase64Encoded': False
+            }
+        
+        update_query = f"UPDATE users SET {', '.join(updates)} WHERE id = {user_id} RETURNING id, user_id, email, full_name, role"
+        cur.execute(update_query)
+        updated_user = cur.fetchone()
+        conn.commit()
+        
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'user': dict(updated_user)}),
+            'isBase64Encoded': False
+        }
+    except Exception as e:
+        print(f"ERROR handle_update_profile: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},

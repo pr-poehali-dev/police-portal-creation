@@ -147,4 +147,43 @@ export const auth = {
   getToken(): string | null {
     return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
   },
+
+  async updateProfile(data: {
+    full_name?: string;
+    current_password?: string;
+    new_password?: string;
+  }): Promise<{ user: User }> {
+    const token = this.getToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(AUTH_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'update_profile',
+        ...data,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Update failed');
+    }
+
+    const result = await response.json();
+    
+    const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (userStr) {
+      if (localStorage.getItem('user')) {
+        localStorage.setItem('user', JSON.stringify(result.user));
+      } else {
+        sessionStorage.setItem('user', JSON.stringify(result.user));
+      }
+    }
+    
+    return result;
+  },
 };
