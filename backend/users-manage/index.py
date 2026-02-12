@@ -22,14 +22,20 @@ def handler(event: dict, context) -> dict:
             'isBase64Encoded': False
         }
     
-    token = event.get('headers', {}).get('X-Authorization', '').replace('Bearer ', '')
+    headers = event.get('headers', {})
+    token = headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    token = token.replace('Bearer ', '').replace('bearer ', '')
     
     if not token:
+        print(f"DEBUG: No token found. Headers: {list(headers.keys())}")
         return error_response(401, 'Authentication required')
     
     current_user = verify_token(token)
     if not current_user:
+        print(f"DEBUG: Token verification failed")
         return error_response(401, 'Invalid token')
+    
+    print(f"DEBUG: User {current_user.get('email')} with role {current_user.get('role')}")
     
     if current_user['role'] not in ['admin', 'manager']:
         return error_response(403, 'Access denied. Admin or Manager role required.')

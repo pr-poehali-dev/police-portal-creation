@@ -36,11 +36,18 @@ export function SettingsPanel() {
     try {
       setLoading(true);
       const token = auth.getToken();
-      if (!token) return;
+      if (!token) {
+        console.log('No token found');
+        toast.error('Нет токена авторизации');
+        return;
+      }
       
+      console.log('Loading users with token:', token.substring(0, 10) + '...');
       const data = await usersApi.getUsers(token, 'all');
+      console.log('Users loaded:', data.length);
       setUsers(data);
     } catch (error) {
+      console.error('Failed to load users:', error);
       toast.error('Ошибка загрузки', {
         description: error instanceof Error ? error.message : 'Не удалось загрузить пользователей'
       });
