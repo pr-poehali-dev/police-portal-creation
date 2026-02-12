@@ -23,11 +23,13 @@ def handler(event: dict, context) -> dict:
         }
     
     headers = event.get('headers', {})
+    print(f"DEBUG: All headers: {headers}")
+    
     token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
     token = token.replace('Bearer ', '').replace('bearer ', '')
     
     if not token:
-        print(f"DEBUG: No token found. Headers: {list(headers.keys())}")
+        print(f"DEBUG: No token found. Checked keys: Authorization, authorization, X-Authorization, x-authorization")
         return error_response(401, 'Authentication required')
     
     current_user = verify_token(token)

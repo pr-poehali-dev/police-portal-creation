@@ -20,7 +20,6 @@ export const usersApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -39,7 +38,6 @@ export const usersApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({
         action: 'activate',
         user_id: userId,
@@ -59,7 +57,6 @@ export const usersApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({
         action: 'deactivate',
         user_id: userId,
@@ -82,7 +79,6 @@ export const usersApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({
         action: 'update',
         user_id: userId,
@@ -103,7 +99,6 @@ export const usersApi = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!response.ok) {
