@@ -826,9 +826,9 @@ const Index = () => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
                 {bolos.map((bolo) => (
-                  <Card key={bolo.id} className="relative min-h-[280px] flex flex-col">
+                  <Card key={bolo.id} className="relative flex flex-col">
                     <CardHeader>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
