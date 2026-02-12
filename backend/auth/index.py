@@ -16,7 +16,7 @@ def handler(event: dict, context) -> dict:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-Authorization',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization',
                 'Access-Control-Max-Age': '86400'
             },
             'body': '',
@@ -40,7 +40,9 @@ def handler(event: dict, context) -> dict:
         elif action == 'login':
             return handle_login(body)
         elif action == 'verify':
-            token = event.get('headers', {}).get('X-Authorization', '').replace('Bearer ', '')
+            headers = event.get('headers', {})
+            token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+            token = token.replace('Bearer ', '').replace('bearer ', '')
             return handle_verify(token)
         else:
             return {

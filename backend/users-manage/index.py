@@ -15,7 +15,7 @@ def handler(event: dict, context) -> dict:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-Authorization',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization',
                 'Access-Control-Max-Age': '86400'
             },
             'body': '',
@@ -23,7 +23,7 @@ def handler(event: dict, context) -> dict:
         }
     
     headers = event.get('headers', {})
-    token = headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
     token = token.replace('Bearer ', '').replace('bearer ', '')
     
     if not token:
