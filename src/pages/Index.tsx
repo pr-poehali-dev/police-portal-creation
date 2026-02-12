@@ -318,7 +318,7 @@ const Index = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-full-name">Имя и фамилия</Label>
-                    <Input id="reg-full-name" name="full_name" placeholder="Иван Иванов" required />
+                    <Input id="reg-full-name" name="full_name" placeholder="Джон Смит" required />
                   </div>
                   <Button type="submit" className="w-full">Зарегистрироваться</Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">
@@ -815,13 +815,18 @@ const Index = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-xl mb-2">{crew.callsign}</CardTitle>
-                    <CardDescription className="flex items-center gap-2">
-                      <Icon name="MapPin" size={14} />
+                    <p className="text-base font-semibold text-foreground mt-1 flex items-center gap-2">
+                      <Icon name="MapPin" size={16} />
                       {crew.location || 'Местоположение не указано'}
-                    </CardDescription>
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${statusConfig[crew.status].color} animate-pulse-soft`} />
+                    <Badge 
+                      className={`gap-1 ${statusConfig[crew.status].color} text-white border-0`}
+                    >
+                      <Icon name={statusConfig[crew.status].icon} size={14} />
+                      {statusConfig[crew.status].label}
+                    </Badge>
                     {canManageCrew(crew) && (
                       <Button
                         variant="ghost"
@@ -836,12 +841,6 @@ const Index = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="gap-1">
-                    <Icon name={statusConfig[crew.status].icon} size={14} />
-                    {statusConfig[crew.status].label}
-                  </Badge>
-                </div>
 
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Состав:</p>
