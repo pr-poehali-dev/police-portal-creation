@@ -679,7 +679,7 @@ const Index = () => {
             <CardContent>
               <div className="flex items-center gap-2">
                 <Icon name="CheckCircle" size={16} />
-                <span className="text-sm">Готовы к выезду</span>
+                <span className="text-sm">Доступны для вызовов</span>
               </div>
             </CardContent>
           </Card>
