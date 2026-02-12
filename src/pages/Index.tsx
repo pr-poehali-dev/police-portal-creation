@@ -489,7 +489,7 @@ const Index = () => {
                 </Avatar>
                 <div className="hidden lg:block">
                   <p className="text-sm font-medium text-white">{user?.full_name || 'Пользователь'}</p>
-                  <p className="text-xs text-white/70">{user?.rank || 'Сотрудник'}</p>
+                  <p className="text-xs text-white/70">{user?.role === 'admin' ? 'Администратор' : user?.role === 'manager' ? 'Менеджер' : user?.role === 'moderator' ? 'Модератор' : 'Сотрудник'}</p>
                 </div>
               </div>
             </div>
@@ -645,7 +645,7 @@ const Index = () => {
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Текущий экипаж</Label>
-                    <p className="font-medium">А-101</p>
+                    <p className="font-medium">{crews.find(c => c.members.some(m => m.user_id === user?.id))?.callsign || 'Не состоите в экипаже'}</p>
                   </div>
                 </div>
 
