@@ -19,7 +19,8 @@ def get_cors_headers():
     return {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
+        'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Max-Age': '86400',
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY'

@@ -42,15 +42,7 @@ export function SettingsPanel() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const token = auth.getToken();
-      if (!token) {
-        console.log('No token found');
-        toast.error('Нет токена авторизации');
-        return;
-      }
-      
-      console.log('Loading users with token:', token.substring(0, 10) + '...');
-      const data = await usersApi.getUsers(token, 'all');
+      const data = await usersApi.getUsers('all');
       console.log('Users loaded:', data.length);
       setUsers(data);
     } catch (error) {
@@ -67,12 +59,9 @@ export function SettingsPanel() {
     if (!activatingUser) return;
     
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await usersApi.activateUser(token, activatingUser.id);
+      await usersApi.activateUser(activatingUser.id);
       if (activationRole !== 'user') {
-        await usersApi.updateUser(token, activatingUser.id, { role: activationRole });
+        await usersApi.updateUser(activatingUser.id, { role: activationRole });
       }
       
       toast.success('Пользователь активирован', {
@@ -109,10 +98,7 @@ export function SettingsPanel() {
 
   const handleDeactivate = async (userId: number) => {
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await usersApi.deactivateUser(token, userId);
+      await usersApi.deactivateUser(userId);
       toast.success('Пользователь заблокирован');
       loadUsers();
     } catch (error) {
@@ -128,10 +114,7 @@ export function SettingsPanel() {
     if (!deletingUser) return;
     
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await usersApi.deleteUser(token, deletingUser.id);
+      await usersApi.deleteUser(deletingUser.id);
       toast.success('Пользователь удалён');
       setDeletingUser(null);
       loadUsers();
@@ -157,9 +140,6 @@ export function SettingsPanel() {
     if (!editingUser) return;
     
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
       // Отправляем только изменённые поля
       const updateData: {
         full_name?: string;
@@ -185,7 +165,7 @@ export function SettingsPanel() {
         updateData.password = editForm.password;
       }
       
-      await usersApi.updateUser(token, editingUser.id, updateData);
+      await usersApi.updateUser(editingUser.id, updateData);
       toast.success('Данные обновлены');
       setEditingUser(null);
       loadUsers();

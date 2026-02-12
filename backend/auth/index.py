@@ -45,13 +45,13 @@ def handler(event: dict, context) -> dict:
             return handle_login(body, client_ip)
         elif action == 'verify':
             headers = event.get('headers', {})
-            token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
-            token = token.replace('Bearer ', '').replace('bearer ', '')
+            cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+            token = extract_token_from_cookie(cookies)
             return handle_verify(token)
         elif action == 'update_profile':
             headers = event.get('headers', {})
-            token = headers.get('Authorization', '') or headers.get('authorization', '') or headers.get('X-Authorization', '') or headers.get('x-authorization', '')
-            token = token.replace('Bearer ', '').replace('bearer ', '')
+            cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+            token = extract_token_from_cookie(cookies)
             return handle_update_profile(body, token)
         else:
             return {
@@ -94,6 +94,17 @@ def verify_password(password: str, stored_hash: str) -> bool:
 def generate_token() -> str:
     """Генерация JWT-подобного токена"""
     return secrets.token_urlsafe(32)
+
+def extract_token_from_cookie(cookies: str) -> str:
+    """Извлечение токена из Cookie header"""
+    if not cookies:
+        return ''
+    
+    for cookie in cookies.split(';'):
+        cookie = cookie.strip()
+        if cookie.startswith('auth_token='):
+            return cookie.split('=', 1)[1]
+    return ''
 
 def handle_register(body: dict) -> dict:
     """Регистрация нового пользователя"""
@@ -155,11 +166,17 @@ def handle_register(body: dict) -> dict:
         )
         conn.commit()
         
+        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/"
+        
         return {
             'statusCode': 201,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Credentials': 'true',
+                'X-Set-Cookie': cookie_value
+            },
             'body': json.dumps({
-                'token': token,
                 'user': dict(user)
             }),
             'isBase64Encoded': False
@@ -262,11 +279,15 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0') -> dict:
         user_data = dict(user)
         user_data.pop('password_hash', None)
         
+        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/"
+        headers = get_security_headers()
+        headers['Access-Control-Allow-Credentials'] = 'true'
+        headers['X-Set-Cookie'] = cookie_value
+        
         return {
             'statusCode': 200,
-            'headers': get_security_headers(),
+            'headers': headers,
             'body': json.dumps({
-                'token': token,
                 'user': user_data
             }),
             'isBase64Encoded': False

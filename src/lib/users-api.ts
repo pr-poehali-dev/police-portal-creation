@@ -11,14 +11,14 @@ export interface UserManagement {
 }
 
 export const usersApi = {
-  async getUsers(token: string, status: 'all' | 'active' | 'pending' = 'all'): Promise<UserManagement[]> {
+  async getUsers(status: 'all' | 'active' | 'pending' = 'all'): Promise<UserManagement[]> {
     const url = status !== 'all' ? `${USERS_API_URL}?status=${status}` : USERS_API_URL;
     
     const response = await fetch(url, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 
@@ -31,12 +31,12 @@ export const usersApi = {
     return result.users;
   },
 
-  async activateUser(token: string, userId: number): Promise<void> {
+  async activateUser(userId: number): Promise<void> {
     const response = await fetch(USERS_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         action: 'activate',
@@ -50,12 +50,12 @@ export const usersApi = {
     }
   },
 
-  async deactivateUser(token: string, userId: number): Promise<void> {
+  async deactivateUser(userId: number): Promise<void> {
     const response = await fetch(USERS_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         action: 'deactivate',
@@ -69,7 +69,7 @@ export const usersApi = {
     }
   },
 
-  async updateUser(token: string, userId: number, data: {
+  async updateUser(userId: number, data: {
     full_name?: string;
     role?: string;
     email?: string;
@@ -89,9 +89,9 @@ export const usersApi = {
     
     const response = await fetch(USERS_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(bodyData),
     });
@@ -102,12 +102,12 @@ export const usersApi = {
     }
   },
 
-  async deleteUser(token: string, userId: number): Promise<void> {
+  async deleteUser(userId: number): Promise<void> {
     const response = await fetch(`${USERS_API_URL}?user_id=${userId}`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 

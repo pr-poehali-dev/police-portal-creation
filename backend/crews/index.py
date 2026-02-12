@@ -6,6 +6,17 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from security import sanitize_string
 
+def extract_token_from_cookie(cookies: str) -> str:
+    """Извлечение токена из Cookie header"""
+    if not cookies:
+        return ''
+    
+    for cookie in cookies.split(';'):
+        cookie = cookie.strip()
+        if cookie.startswith('auth_token='):
+            return cookie.split('=', 1)[1]
+    return ''
+
 def handler(event: dict, context) -> dict:
     """API для управления экипажами"""
     method = event.get('httpMethod', 'GET')
@@ -16,7 +27,8 @@ def handler(event: dict, context) -> dict:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization, Cookie, X-Cookie',
+                'Access-Control-Allow-Credentials': 'true',
                 'Access-Control-Max-Age': '86400'
             },
             'body': '',
@@ -24,8 +36,8 @@ def handler(event: dict, context) -> dict:
         }
     
     headers = event.get('headers', {})
-    token = headers.get('X-Authorization', '') or headers.get('x-authorization', '')
-    token = token.replace('Bearer ', '').replace('bearer ', '')
+    cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+    token = extract_token_from_cookie(cookies)
     
     if not token:
         return error_response(401, 'Authentication required')

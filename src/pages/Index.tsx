@@ -93,10 +93,7 @@ const Index = () => {
   const loadCrews = async () => {
     try {
       setCrewsLoading(true);
-      const token = auth.getToken();
-      if (!token) return;
-      
-      const data = await crewsApi.getCrews(token);
+      const data = await crewsApi.getCrews();
       setCrews(data);
     } catch (error) {
       console.error('Failed to load crews:', error);
@@ -108,10 +105,7 @@ const Index = () => {
 
   const loadAvailableUsers = async () => {
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      const users = await crewsApi.getAvailableUsers(token);
+      const users = await crewsApi.getAvailableUsers();
       setAvailableUsers(users);
     } catch (error) {
       console.error('Failed to load available users:', error);
@@ -121,10 +115,7 @@ const Index = () => {
   const loadBolos = async () => {
     try {
       setBolosLoading(true);
-      const token = auth.getToken();
-      if (!token) return;
-      
-      const data = await boloApi.getAll(token);
+      const data = await boloApi.getAll();
       setBolos(data);
     } catch (error) {
       console.error('Failed to load BOLOs:', error);
@@ -136,10 +127,7 @@ const Index = () => {
 
   const handleCreateBolo = async () => {
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await boloApi.create(token, boloForm);
+      await boloApi.create(boloForm);
       toast.success('Ориентировка создана');
       setShowBoloDialog(false);
       setBoloForm({ type: 'person', mainInfo: '', additionalInfo: '', isArmed: false });
@@ -154,10 +142,7 @@ const Index = () => {
   const handleUpdateBolo = async () => {
     try {
       if (!editingBolo) return;
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await boloApi.update(token, editingBolo.id, boloForm);
+      await boloApi.update(editingBolo.id, boloForm);
       toast.success('Ориентировка обновлена');
       setShowBoloDialog(false);
       setEditingBolo(null);
@@ -172,10 +157,7 @@ const Index = () => {
 
   const handleDeleteBolo = async (id: number) => {
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await boloApi.delete(token, id);
+      await boloApi.delete(id);
       toast.success('Ориентировка удалена');
       loadBolos();
     } catch (error) {
@@ -217,10 +199,7 @@ const Index = () => {
 
   const handleCreateCrew = async () => {
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await crewsApi.createCrew(token, {
+      await crewsApi.createCrew({
         callsign: createForm.callsign,
         location: createForm.location,
         second_member_id: createForm.second_member_id || undefined
@@ -250,10 +229,7 @@ const Index = () => {
 
   const handleStatusChange = async (crewId: number, newStatus: CrewStatus) => {
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
-      await crewsApi.updateCrewStatus(token, crewId, newStatus);
+      await crewsApi.updateCrewStatus(crewId, newStatus);
       
       const crew = crews.find(c => c.id === crewId);
       const notifMessage = `Экипаж ${crew?.callsign} изменил статус на '${statusConfig[newStatus].label}'`;
@@ -276,13 +252,10 @@ const Index = () => {
     if (!confirm('Удалить экипаж?')) return;
     
     try {
-      const token = auth.getToken();
-      if (!token) return;
-      
       const crew = crews.find(c => c.id === crewId);
       const crewName = crew?.callsign || 'экипаж';
       
-      await crewsApi.deleteCrew(token, crewId);
+      await crewsApi.deleteCrew(crewId);
       
       const deleteNotification = {
         id: Date.now().toString(),
@@ -740,9 +713,7 @@ const Index = () => {
                           <Button
                             onClick={async () => {
                               try {
-                                const token = auth.getToken();
-                                if (!token) return;
-                                await crewsApi.updateCrewLocation(token, myCrew.id, locationInput);
+                                await crewsApi.updateCrewLocation(myCrew.id, locationInput);
                                 toast.success('Местоположение обновлено');
                                 loadCrews();
                               } catch (error) {

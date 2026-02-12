@@ -19,13 +19,13 @@ export interface Crew {
 }
 
 export const crewsApi = {
-  async getCrews(token: string): Promise<Crew[]> {
+  async getCrews(): Promise<Crew[]> {
     try {
       const response = await fetch(CREWS_API_URL, {
         method: 'GET',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -42,7 +42,7 @@ export const crewsApi = {
     }
   },
 
-  async createCrew(token: string, data: {
+  async createCrew(data: {
     callsign: string;
     location?: string;
     second_member_id?: number;
@@ -50,9 +50,9 @@ export const crewsApi = {
     try {
       const response = await fetch(CREWS_API_URL, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       });
@@ -67,12 +67,12 @@ export const crewsApi = {
     }
   },
 
-  async updateCrewStatus(token: string, crewId: number, status: string): Promise<void> {
+  async updateCrewStatus(crewId: number, status: string): Promise<void> {
     const response = await fetch(CREWS_API_URL, {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         crew_id: crewId,
@@ -87,12 +87,12 @@ export const crewsApi = {
     }
   },
 
-  async updateCrewLocation(token: string, crewId: number, location: string): Promise<void> {
+  async updateCrewLocation(crewId: number, location: string): Promise<void> {
     const response = await fetch(CREWS_API_URL, {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         crew_id: crewId,
@@ -107,12 +107,12 @@ export const crewsApi = {
     }
   },
 
-  async deleteCrew(token: string, crewId: number): Promise<void> {
+  async deleteCrew(crewId: number): Promise<void> {
     const response = await fetch(`${CREWS_API_URL}?crew_id=${crewId}`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 
@@ -122,12 +122,12 @@ export const crewsApi = {
     }
   },
 
-  async getAvailableUsers(token: string): Promise<{ id: number; user_id: string; full_name: string; email: string }[]> {
+  async getAvailableUsers(): Promise<{ id: number; user_id: string; full_name: string; email: string }[]> {
     const usersResponse = await fetch('https://functions.poehali.dev/348afac0-d112-4953-b5da-6eafc2cf5bec?status=active', {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 
@@ -139,9 +139,9 @@ export const crewsApi = {
     
     const crewsResponse = await fetch(CREWS_API_URL, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 

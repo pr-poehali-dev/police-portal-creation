@@ -12,12 +12,12 @@ export interface Bolo {
 }
 
 export const boloApi = {
-  async getAll(token: string): Promise<Bolo[]> {
+  async getAll(): Promise<Bolo[]> {
     const response = await fetch(BOLO_API_URL, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 
@@ -29,12 +29,12 @@ export const boloApi = {
     return response.json();
   },
 
-  async create(token: string, data: Omit<Bolo, 'id' | 'createdAt' | 'updatedAt' | 'createdByName'>): Promise<Bolo> {
+  async create(data: Omit<Bolo, 'id' | 'createdAt' | 'updatedAt' | 'createdByName'>): Promise<Bolo> {
     const response = await fetch(BOLO_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(data),
     });
@@ -47,12 +47,12 @@ export const boloApi = {
     return response.json();
   },
 
-  async update(token: string, id: number, data: Partial<Omit<Bolo, 'id' | 'createdAt' | 'updatedAt' | 'createdByName'>>): Promise<void> {
+  async update(id: number, data: Partial<Omit<Bolo, 'id' | 'createdAt' | 'updatedAt' | 'createdByName'>>): Promise<void> {
     const response = await fetch(BOLO_API_URL, {
       method: 'PUT',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ id, ...data }),
     });
@@ -63,12 +63,12 @@ export const boloApi = {
     }
   },
 
-  async delete(token: string, id: number): Promise<void> {
+  async delete(id: number): Promise<void> {
     const response = await fetch(`${BOLO_API_URL}?id=${id}`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
     });
 

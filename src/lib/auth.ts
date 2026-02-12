@@ -22,6 +22,7 @@ export const auth = {
   }, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -37,16 +38,7 @@ export const auth = {
     }
 
     const result = await response.json();
-    
-    if (rememberMe) {
-      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
-      localStorage.setItem('auth_token', result.token);
-      localStorage.setItem('user', JSON.stringify(result.user));
-      localStorage.setItem('auth_expires', expiresAt.toString());
-    } else {
-      sessionStorage.setItem('auth_token', result.token);
-      sessionStorage.setItem('user', JSON.stringify(result.user));
-    }
+    localStorage.setItem('user', JSON.stringify(result.user));
     
     return result;
   },
@@ -54,6 +46,7 @@ export const auth = {
   async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -70,36 +63,18 @@ export const auth = {
     }
 
     const result = await response.json();
-    
-    if (rememberMe) {
-      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
-      localStorage.setItem('auth_token', result.token);
-      localStorage.setItem('user', JSON.stringify(result.user));
-      localStorage.setItem('auth_expires', expiresAt.toString());
-    } else {
-      sessionStorage.setItem('auth_token', result.token);
-      sessionStorage.setItem('user', JSON.stringify(result.user));
-    }
+    localStorage.setItem('user', JSON.stringify(result.user));
     
     return result;
   },
 
   async verify(): Promise<User | null> {
-    const expiresAt = localStorage.getItem('auth_expires');
-    if (expiresAt && Date.now() > parseInt(expiresAt)) {
-      this.logout();
-      return null;
-    }
-    
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    if (!token) return null;
-
     try {
       const response = await fetch(AUTH_API_URL, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           action: 'verify',
@@ -114,6 +89,7 @@ export const auth = {
       }
 
       const result = await response.json();
+      localStorage.setItem('user', JSON.stringify(result.user));
       return result.user;
     } catch (error) {
       console.error('Verify error:', error);
@@ -123,15 +99,12 @@ export const auth = {
   },
 
   logout() {
-    localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
-    localStorage.removeItem('auth_expires');
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('user');
+    document.cookie = 'auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/';
   },
 
   getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
+    const userStr = localStorage.getItem('user');
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
@@ -141,11 +114,11 @@ export const auth = {
   },
 
   isAuthenticated(): boolean {
-    return !!(localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'));
+    return !!localStorage.getItem('user');
   },
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+    return null;
   },
 
   async updateProfile(data: {
@@ -153,14 +126,11 @@ export const auth = {
     current_password?: string;
     new_password?: string;
   }): Promise<{ user: User }> {
-    const token = this.getToken();
-    if (!token) throw new Error('Not authenticated');
-
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         action: 'update_profile',
@@ -174,15 +144,7 @@ export const auth = {
     }
 
     const result = await response.json();
-    
-    const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
-    if (userStr) {
-      if (localStorage.getItem('user')) {
-        localStorage.setItem('user', JSON.stringify(result.user));
-      } else {
-        sessionStorage.setItem('user', JSON.stringify(result.user));
-      }
-    }
+    localStorage.setItem('user', JSON.stringify(result.user));
     
     return result;
   },
