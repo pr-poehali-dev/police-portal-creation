@@ -40,7 +40,6 @@ const Index = () => {
   const [notifications, setNotifications] = useState<Array<{id: string; message: string; time: string; type: string}>>([]);
   
   const [showNotifications, setShowNotifications] = useState(false);
-  const [editingLocation, setEditingLocation] = useState(false);
   const [locationInput, setLocationInput] = useState('');
 
   const statusConfig: Record<CrewStatus, { label: string; color: string; icon: string }> = {
@@ -70,6 +69,13 @@ const Index = () => {
       loadCrews();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    const myCrew = crews.find(c => c.members.some(m => m.user_id === user?.id));
+    if (myCrew) {
+      setLocationInput(myCrew.location || '');
+    }
+  }, [crews, user]);
 
   const loadCrews = async () => {
     try {
@@ -556,67 +562,12 @@ const Index = () => {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="text-2xl mb-2">{myCrew.callsign}</CardTitle>
-                        {editingLocation ? (
-                          <div className="flex items-center gap-2 mt-2">
-                            <Input
-                              placeholder="Введите местоположение"
-                              value={locationInput}
-                              onChange={(e) => setLocationInput(e.target.value)}
-                              className="max-w-sm"
-                            />
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  const token = auth.getToken();
-                                  if (!token) return;
-                                  await crewsApi.updateCrewLocation(token, myCrew.id, locationInput);
-                                  toast.success('Местоположение обновлено');
-                                  setEditingLocation(false);
-                                  loadCrews();
-                                } catch (error) {
-                                  toast.error('Ошибка', {
-                                    description: error instanceof Error ? error.message : 'Не удалось обновить местоположение'
-                                  });
-                                }
-                              }}
-                            >
-                              <Icon name="Check" size={16} />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setEditingLocation(false);
-                                setLocationInput(myCrew.location || '');
-                              }}
-                            >
-                              <Icon name="X" size={16} />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            {myCrew.location && (
-                              <CardDescription className="flex items-center gap-2">
-                                <Icon name="MapPin" size={14} />
-                                {myCrew.location}
-                              </CardDescription>
-                            )}
-                            {canManageCrew(myCrew) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 px-2"
-                                onClick={() => {
-                                  setLocationInput(myCrew.location || '');
-                                  setEditingLocation(true);
-                                }}
-                              >
-                                <Icon name="Edit" size={14} />
-                              </Button>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <Icon name="MapPin" size={14} />
+                          {myCrew.location && (
+                            <CardDescription>{myCrew.location}</CardDescription>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="gap-1">
@@ -655,6 +606,36 @@ const Index = () => {
                         ))}
                       </div>
                     </div>
+
+                    {canManageCrew(myCrew) && (
+                      <div>
+                        <h3 className="font-semibold mb-3">Местоположение</h3>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Введите местоположение"
+                            value={locationInput}
+                            onChange={(e) => setLocationInput(e.target.value)}
+                          />
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const token = auth.getToken();
+                                if (!token) return;
+                                await crewsApi.updateCrewLocation(token, myCrew.id, locationInput);
+                                toast.success('Местоположение обновлено');
+                                loadCrews();
+                              } catch (error) {
+                                toast.error('Ошибка', {
+                                  description: error instanceof Error ? error.message : 'Не удалось обновить местоположение'
+                                });
+                              }
+                            }}
+                          >
+                            Сохранить
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {canManageCrew(myCrew) && (
                       <div>
@@ -905,10 +886,12 @@ const Index = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-xl mb-2">{crew.callsign}</CardTitle>
-                    <p className="text-base font-semibold text-foreground mt-1 flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-1">
                       <Icon name="MapPin" size={16} />
-                      {crew.location || 'Местоположение не указано'}
-                    </p>
+                      {crew.location && (
+                        <p className="text-base font-semibold text-foreground">{crew.location}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge 
@@ -945,47 +928,85 @@ const Index = () => {
                 </div>
 
                 {canManageCrew(crew) && (
-                  <div className="pt-2 border-t space-y-2">
-                    <Label className="text-xs">Изменить статус:</Label>
-                    <div className="grid grid-cols-2 gap-2 text-xs md:text-sm">
-                      <Button 
-                        size="sm" 
-                        variant={crew.status === "active" ? "default" : "outline"}
-                        onClick={() => handleStatusChange(crew.id, "active")}
-                        className={`gap-1 ${crew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
-                      >
-                        <Icon name="CheckCircle" size={14} />
-                        Доступен
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={crew.status === "patrol" ? "default" : "outline"}
-                        onClick={() => handleStatusChange(crew.id, "patrol")}
-                        className={`gap-1 ${crew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
-                      >
-                        <Icon name="Clock" size={14} />
-                        Занят
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={crew.status === "responding" ? "default" : "outline"}
-                        onClick={() => handleStatusChange(crew.id, "responding")}
-                        className={`gap-1 ${crew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
-                      >
-                        <Icon name="AlertTriangle" size={14} />
-                        Задержка
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={crew.status === "offline" ? "default" : "outline"}
-                        onClick={() => handleStatusChange(crew.id, "offline")}
-                        className={`gap-1 ${crew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
-                      >
-                        <Icon name="AlertOctagon" size={14} />
-                        Поддержка
-                      </Button>
+                  <>
+                    <div className="pt-2 border-t space-y-2">
+                      <Label className="text-xs font-semibold">Местоположение</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Введите местоположение"
+                          defaultValue={crew.location || ''}
+                          onChange={(e) => {
+                            const input = e.target;
+                            input.dataset.crewId = crew.id.toString();
+                            input.dataset.location = e.target.value;
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          onClick={async (e) => {
+                            const input = (e.target as HTMLElement).closest('div')?.querySelector('input');
+                            if (!input) return;
+                            const crewId = parseInt(input.dataset.crewId || '0');
+                            const location = input.dataset.location || input.value;
+                            try {
+                              const token = auth.getToken();
+                              if (!token) return;
+                              await crewsApi.updateCrewLocation(token, crewId, location);
+                              toast.success('Местоположение обновлено');
+                              loadCrews();
+                            } catch (error) {
+                              toast.error('Ошибка', {
+                                description: error instanceof Error ? error.message : 'Не удалось обновить местоположение'
+                              });
+                            }
+                          }}
+                        >
+                          Сохранить
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                    <div className="pt-2 border-t space-y-2">
+                      <Label className="text-xs font-semibold">Изменить статус</Label>
+                      <div className="grid grid-cols-2 gap-2 text-xs md:text-sm">
+                        <Button 
+                          size="sm" 
+                          variant={crew.status === "active" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "active")}
+                          className={`gap-1 ${crew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                        >
+                          <Icon name="CheckCircle" size={14} />
+                          Доступен
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant={crew.status === "patrol" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "patrol")}
+                          className={`gap-1 ${crew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
+                        >
+                          <Icon name="Clock" size={14} />
+                          Занят
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant={crew.status === "responding" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "responding")}
+                          className={`gap-1 ${crew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                        >
+                          <Icon name="AlertTriangle" size={14} />
+                          Задержка
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant={crew.status === "offline" ? "default" : "outline"}
+                          onClick={() => handleStatusChange(crew.id, "offline")}
+                          className={`gap-1 ${crew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
+                        >
+                          <Icon name="AlertOctagon" size={14} />
+                          Поддержка
+                        </Button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
