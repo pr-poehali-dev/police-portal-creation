@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
 import { auth, User } from "@/lib/auth";
@@ -30,7 +31,9 @@ const Index = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile" | "settings">("crews");
+  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile" | "settings">(
+    () => (localStorage.getItem('active_tab') as "my-crew" | "crews" | "profile" | "settings") || "crews"
+  );
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [crews, setCrews] = useState<Crew[]>([
@@ -138,9 +141,10 @@ const Index = () => {
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
+    const rememberMe = formData.get('rememberMe') === 'on';
 
     try {
-      const result = await auth.login(email, password);
+      const result = await auth.login(email, password, rememberMe);
       setUser(result.user);
       setIsAuthenticated(true);
       toast.success('Вход выполнен', {
@@ -179,8 +183,15 @@ const Index = () => {
     auth.logout();
     setUser(null);
     setIsAuthenticated(false);
+    localStorage.removeItem('active_tab');
     toast.info('Выход выполнен');
   };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      localStorage.setItem('active_tab', activeTab);
+    }
+  }, [activeTab, isAuthenticated]);
 
   if (loading) {
     return (
@@ -215,21 +226,30 @@ const Index = () => {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email или ID</Label>
-                    <Input id="login-email" name="email" placeholder="00002 или user@demo.ru" required />
+                    <Input id="login-email" name="email" placeholder="00001 или manager@demo.ru" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Пароль</Label>
                     <Input id="login-password" name="password" type="password" placeholder="Введите пароль" required />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="rememberMe" name="rememberMe" />
+                    <label
+                      htmlFor="rememberMe"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Запомнить меня на 1 час
+                    </label>
                   </div>
                   <Button type="submit" className="w-full">Войти</Button>
                   
                   <div className="mt-4 p-3 bg-muted rounded-lg text-xs space-y-1.5">
                     <p className="font-semibold text-foreground mb-2">Тестовые учетные записи:</p>
                     <div className="space-y-1">
-                      <p><span className="font-medium">Пользователь:</span> 00002 или user@demo.ru</p>
+                      <p><span className="font-medium">Менеджер:</span> 00001 или manager@demo.ru</p>
+                      <p><span className="font-medium">Администратор:</span> 00002 или admin@demo.ru</p>
                       <p><span className="font-medium">Модератор:</span> 00003 или moderator@demo.ru</p>
-                      <p><span className="font-medium">Администратор:</span> 00004 или admin@demo.ru</p>
-                      <p><span className="font-medium">Менеджер:</span> 00005 или manager@demo.ru</p>
+                      <p><span className="font-medium">Пользователь:</span> 00004 или user@demo.ru</p>
                       <p className="pt-1 text-muted-foreground">Пароль для всех: <span className="font-medium">demo123</span></p>
                     </div>
                   </div>

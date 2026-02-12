@@ -98,7 +98,7 @@ def get_users(event: dict, current_user: dict):
         elif status == 'active':
             cur.execute(
                 """SELECT id, user_id, email, full_name, role, is_active, created_at
-                   FROM users WHERE is_active = true ORDER BY full_name"""
+                   FROM users WHERE is_active = true ORDER BY user_id"""
             )
         else:
             cur.execute(

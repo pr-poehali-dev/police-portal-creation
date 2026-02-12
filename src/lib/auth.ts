@@ -19,7 +19,7 @@ export const auth = {
     email: string;
     password: string;
     full_name: string;
-  }): Promise<AuthResponse> {
+  }, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
       headers: {
@@ -37,12 +37,21 @@ export const auth = {
     }
 
     const result = await response.json();
-    localStorage.setItem('auth_token', result.token);
-    localStorage.setItem('user', JSON.stringify(result.user));
+    
+    if (rememberMe) {
+      const expiresAt = Date.now() + 60 * 60 * 1000;
+      localStorage.setItem('auth_token', result.token);
+      localStorage.setItem('user', JSON.stringify(result.user));
+      localStorage.setItem('auth_expires', expiresAt.toString());
+    } else {
+      sessionStorage.setItem('auth_token', result.token);
+      sessionStorage.setItem('user', JSON.stringify(result.user));
+    }
+    
     return result;
   },
 
-  async login(email: string, password: string): Promise<AuthResponse> {
+  async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
       headers: {
@@ -61,13 +70,28 @@ export const auth = {
     }
 
     const result = await response.json();
-    localStorage.setItem('auth_token', result.token);
-    localStorage.setItem('user', JSON.stringify(result.user));
+    
+    if (rememberMe) {
+      const expiresAt = Date.now() + 60 * 60 * 1000;
+      localStorage.setItem('auth_token', result.token);
+      localStorage.setItem('user', JSON.stringify(result.user));
+      localStorage.setItem('auth_expires', expiresAt.toString());
+    } else {
+      sessionStorage.setItem('auth_token', result.token);
+      sessionStorage.setItem('user', JSON.stringify(result.user));
+    }
+    
     return result;
   },
 
   async verify(): Promise<User | null> {
-    const token = localStorage.getItem('auth_token');
+    const expiresAt = localStorage.getItem('auth_expires');
+    if (expiresAt && Date.now() > parseInt(expiresAt)) {
+      this.logout();
+      return null;
+    }
+    
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
     if (!token) return null;
 
     try {
@@ -98,10 +122,13 @@ export const auth = {
   logout() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('auth_expires');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('user');
   },
 
   getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
@@ -111,10 +138,10 @@ export const auth = {
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('auth_token');
+    return !!(localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'));
   },
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
   },
 };
