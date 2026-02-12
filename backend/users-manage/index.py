@@ -166,8 +166,20 @@ def update_user(event: dict, current_user: dict):
             if 'full_name' in body:
                 full_name = body['full_name'].replace("'", "''")
                 updates.append(f"full_name = '{full_name}'")
-            if 'role' in body and body['role'] in ['user', 'moderator', 'admin', 'manager']:
-                updates.append(f"role = '{body['role']}'")
+            if 'role' in body:
+                new_role = body['role']
+                if new_role not in ['user', 'moderator', 'admin', 'manager']:
+                    return error_response(400, 'Invalid role')
+                
+                # Менеджер не может назначать менеджеров и администраторов
+                if current_user['role'] == 'manager' and new_role in ['manager', 'admin']:
+                    return error_response(403, 'Managers cannot assign Manager or Admin roles')
+                
+                # Администратор не может назначать менеджеров
+                if current_user['role'] == 'admin' and new_role == 'manager':
+                    return error_response(403, 'Admins cannot assign Manager role')
+                
+                updates.append(f"role = '{new_role}'")
             if 'email' in body:
                 email = body['email'].lower().replace("'", "''")
                 # Проверка уникальности email
@@ -175,8 +187,15 @@ def update_user(event: dict, current_user: dict):
                 if cur.fetchone():
                     return error_response(400, 'Email already exists')
                 updates.append(f"email = '{email}'")
-            if 'user_id' in body:
-                new_user_id = str(body['user_id']).replace("'", "''")
+            if 'new_user_id' in body:
+                new_user_id = str(body['new_user_id']).strip().replace("'", "''")
+                if not new_user_id or len(new_user_id) == 0:
+                    return error_response(400, 'User ID cannot be empty')
+                
+                # Форматируем до 5 цифр с ведущими нулями (если это число)
+                if new_user_id.isdigit():
+                    new_user_id = new_user_id.zfill(5)
+                
                 # Проверка уникальности user_id
                 cur.execute(f"SELECT id FROM users WHERE user_id = '{new_user_id}' AND id != {user_id}")
                 if cur.fetchone():

@@ -90,7 +90,7 @@ export function SettingsPanel() {
 
   const getAvailableRoles = (forEdit: boolean = false) => {
     if (currentUserRole === 'manager') {
-      return ['user', 'moderator', 'admin'];
+      return ['user', 'moderator'];
     }
     if (currentUserRole === 'admin') {
       return ['user', 'moderator'];

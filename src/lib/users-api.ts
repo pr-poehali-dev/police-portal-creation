@@ -76,17 +76,24 @@ export const usersApi = {
     user_id?: string;
     password?: string;
   }): Promise<void> {
+    const bodyData: Record<string, string | number> = {
+      action: 'update',
+      user_id: userId,
+    };
+    
+    if (data.full_name !== undefined) bodyData.full_name = data.full_name;
+    if (data.role !== undefined) bodyData.role = data.role;
+    if (data.email !== undefined) bodyData.email = data.email;
+    if (data.user_id !== undefined) bodyData.new_user_id = data.user_id;
+    if (data.password !== undefined) bodyData.password = data.password;
+    
     const response = await fetch(USERS_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        action: 'update',
-        user_id: userId,
-        ...data,
-      }),
+      body: JSON.stringify(bodyData),
     });
 
     if (!response.ok) {
