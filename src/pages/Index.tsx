@@ -160,18 +160,14 @@ const Index = () => {
       email: formData.get('email') as string,
       password: formData.get('password') as string,
       full_name: formData.get('full_name') as string,
-      rank: formData.get('rank') as string,
-      badge_number: formData.get('badge_number') as string,
-      department: formData.get('department') as string,
     };
 
     try {
-      const result = await auth.register(data);
-      setUser(result.user);
-      setIsAuthenticated(true);
+      await auth.register(data);
       toast.success('Регистрация завершена', {
-        description: `Добро пожаловать, ${result.user.full_name}!`
+        description: 'Ваш аккаунт ожидает активации администратором. Вы получите доступ после одобрения.'
       });
+      setAuthMode('login');
     } catch (error) {
       toast.error('Ошибка регистрации', {
         description: error instanceof Error ? error.message : 'Проверьте введённые данные'
@@ -218,22 +214,22 @@ const Index = () => {
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" name="email" type="email" placeholder="user@demo.ru" required />
+                    <Label htmlFor="login-email">Email или ID</Label>
+                    <Input id="login-email" name="email" placeholder="00002 или user@demo.ru" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Пароль</Label>
-                    <Input id="login-password" name="password" type="password" placeholder="demo123" required />
+                    <Input id="login-password" name="password" type="password" placeholder="Введите пароль" required />
                   </div>
                   <Button type="submit" className="w-full">Войти</Button>
                   
                   <div className="mt-4 p-3 bg-muted rounded-lg text-xs space-y-1.5">
                     <p className="font-semibold text-foreground mb-2">Тестовые учетные записи:</p>
                     <div className="space-y-1">
-                      <p><span className="font-medium">Пользователь:</span> user@demo.ru</p>
-                      <p><span className="font-medium">Модератор:</span> moderator@demo.ru</p>
-                      <p><span className="font-medium">Администратор:</span> admin@demo.ru</p>
-                      <p><span className="font-medium">Менеджер:</span> manager@demo.ru</p>
+                      <p><span className="font-medium">Пользователь:</span> 00002 или user@demo.ru</p>
+                      <p><span className="font-medium">Модератор:</span> 00003 или moderator@demo.ru</p>
+                      <p><span className="font-medium">Администратор:</span> 00004 или admin@demo.ru</p>
+                      <p><span className="font-medium">Менеджер:</span> 00005 или manager@demo.ru</p>
                       <p className="pt-1 text-muted-foreground">Пароль для всех: <span className="font-medium">demo123</span></p>
                     </div>
                   </div>
@@ -243,29 +239,20 @@ const Index = () => {
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="reg-email">Email</Label>
-                    <Input id="reg-email" name="email" type="email" placeholder="user@police.ru" required />
+                    <Input id="reg-email" name="email" type="email" placeholder="user@example.com" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-password">Пароль</Label>
                     <Input id="reg-password" name="password" type="password" placeholder="Минимум 6 символов" required minLength={6} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg-full-name">Полное имя</Label>
-                    <Input id="reg-full-name" name="full_name" placeholder="Иванов Иван Иванович" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-rank">Звание</Label>
-                    <Input id="reg-rank" name="rank" placeholder="Лейтенант" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-badge">Служебный номер</Label>
-                    <Input id="reg-badge" name="badge_number" placeholder="12345" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-dept">Подразделение</Label>
-                    <Input id="reg-dept" name="department" placeholder="Центральный отдел" />
+                    <Label htmlFor="reg-full-name">Имя и фамилия</Label>
+                    <Input id="reg-full-name" name="full_name" placeholder="Иван Иванов" required />
                   </div>
                   <Button type="submit" className="w-full">Зарегистрироваться</Button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    После регистрации ваш аккаунт ожидает активации администратором
+                  </p>
                 </form>
               </TabsContent>
             </Tabs>
@@ -532,7 +519,7 @@ const Index = () => {
                   </Avatar>
                   <div>
                     <CardTitle className="text-2xl">{user?.full_name || 'Пользователь'}</CardTitle>
-                    <CardDescription>{user?.rank || 'Сотрудник'}</CardDescription>
+                    <CardDescription>ID: {user?.user_id || '—'} • {user?.role === 'admin' ? 'Администратор' : user?.role === 'manager' ? 'Менеджер' : user?.role === 'moderator' ? 'Модератор' : 'Пользователь'}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -542,18 +529,10 @@ const Index = () => {
                     <Label className="text-muted-foreground">Email</Label>
                     <p className="font-medium">{user?.email || 'Не указан'}</p>
                   </div>
-                  {user?.badge_number && (
-                    <div>
-                      <Label className="text-muted-foreground">Служебный номер</Label>
-                      <p className="font-medium">№ {user.badge_number}</p>
-                    </div>
-                  )}
-                  {user?.department && (
-                    <div>
-                      <Label className="text-muted-foreground">Подразделение</Label>
-                      <p className="font-medium">{user.department}</p>
-                    </div>
-                  )}
+                  <div>
+                    <Label className="text-muted-foreground">ID пользователя</Label>
+                    <p className="font-medium font-mono">{user?.user_id || '—'}</p>
+                  </div>
                   <div>
                     <Label className="text-muted-foreground">Текущий экипаж</Label>
                     <p className="font-medium">А-101</p>

@@ -2,11 +2,9 @@ const AUTH_API_URL = 'https://functions.poehali.dev/7f5283a8-d73f-4630-82d9-49a0
 
 export interface User {
   id: number;
+  user_id?: string;
   email: string;
   full_name: string;
-  rank?: string;
-  badge_number?: string;
-  department?: string;
   role?: string;
   is_active?: boolean;
 }
@@ -21,9 +19,6 @@ export const auth = {
     email: string;
     password: string;
     full_name: string;
-    rank?: string;
-    badge_number?: string;
-    department?: string;
   }): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',

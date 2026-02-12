@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
@@ -15,19 +15,15 @@ import { auth } from "@/lib/auth";
 export function SettingsPanel() {
   const [users, setUsers] = useState<UserManagement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'active' | 'pending'>('all');
   const [editingUser, setEditingUser] = useState<UserManagement | null>(null);
   const [editForm, setEditForm] = useState({
     full_name: '',
-    rank: '',
-    badge_number: '',
-    department: '',
     role: 'user'
   });
 
   useEffect(() => {
     loadUsers();
-  }, [filter]);
+  }, []);
 
   const loadUsers = async () => {
     try {
@@ -35,7 +31,7 @@ export function SettingsPanel() {
       const token = auth.getToken();
       if (!token) return;
       
-      const data = await usersApi.getUsers(token, filter);
+      const data = await usersApi.getUsers(token, 'all');
       setUsers(data);
     } catch (error) {
       toast.error('Ошибка загрузки', {
@@ -97,9 +93,6 @@ export function SettingsPanel() {
     setEditingUser(user);
     setEditForm({
       full_name: user.full_name,
-      rank: user.rank || '',
-      badge_number: user.badge_number || '',
-      department: user.department || '',
       role: user.role
     });
   };
@@ -129,35 +122,12 @@ export function SettingsPanel() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl md:text-3xl font-bold">Управление пользователями</h2>
-        <div className="flex gap-2">
-          <Button
-            variant={filter === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilter('all')}
-          >
-            Все ({users.length})
-          </Button>
-          <Button
-            variant={filter === 'active' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilter('active')}
-          >
-            Активные ({activeUsers.length})
-          </Button>
-          <Button
-            variant={filter === 'pending' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilter('pending')}
-          >
-            Ожидают ({pendingUsers.length})
-          </Button>
-        </div>
       </div>
 
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="active">Активные аккаунты</TabsTrigger>
-          <TabsTrigger value="pending">Ожидают активации</TabsTrigger>
+          <TabsTrigger value="active">Активные ({activeUsers.length})</TabsTrigger>
+          <TabsTrigger value="pending">Ожидают активации ({pendingUsers.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-4 mt-4">
@@ -177,6 +147,7 @@ export function SettingsPanel() {
                     <div className="flex-1">
                       <CardTitle className="flex items-center gap-2">
                         {user.full_name}
+                        <Badge variant="outline" className="font-mono">ID: {user.user_id}</Badge>
                         <Badge variant={
                           user.role === 'admin' ? 'destructive' :
                           user.role === 'manager' ? 'default' :
@@ -216,22 +187,6 @@ export function SettingsPanel() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Звание</p>
-                      <p className="font-medium">{user.rank || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Номер</p>
-                      <p className="font-medium">{user.badge_number || '—'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-muted-foreground">Подразделение</p>
-                      <p className="font-medium">{user.department || '—'}</p>
-                    </div>
-                  </div>
-                </CardContent>
               </Card>
             ))
           )}
@@ -254,6 +209,7 @@ export function SettingsPanel() {
                     <div className="flex-1">
                       <CardTitle className="flex items-center gap-2">
                         {user.full_name}
+                        <Badge variant="outline" className="font-mono">ID: {user.user_id}</Badge>
                         <Badge variant="outline" className="bg-orange-100">
                           Ожидает активации
                         </Badge>
@@ -282,22 +238,6 @@ export function SettingsPanel() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Звание</p>
-                      <p className="font-medium">{user.rank || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Номер</p>
-                      <p className="font-medium">{user.badge_number || '—'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-muted-foreground">Подразделение</p>
-                      <p className="font-medium">{user.department || '—'}</p>
-                    </div>
-                  </div>
-                </CardContent>
               </Card>
             ))
           )}
@@ -309,40 +249,16 @@ export function SettingsPanel() {
           <DialogHeader>
             <DialogTitle>Редактирование пользователя</DialogTitle>
             <DialogDescription>
-              Изменение данных пользователя {editingUser?.full_name}
+              {editingUser?.full_name} (ID: {editingUser?.user_id})
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Полное имя</Label>
+              <Label htmlFor="edit-name">Имя и фамилия</Label>
               <Input
                 id="edit-name"
                 value={editForm.full_name}
                 onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-rank">Звание</Label>
-              <Input
-                id="edit-rank"
-                value={editForm.rank}
-                onChange={(e) => setEditForm({ ...editForm, rank: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-badge">Служебный номер</Label>
-              <Input
-                id="edit-badge"
-                value={editForm.badge_number}
-                onChange={(e) => setEditForm({ ...editForm, badge_number: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-dept">Подразделение</Label>
-              <Input
-                id="edit-dept"
-                value={editForm.department}
-                onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
               />
             </div>
             <div className="space-y-2">

@@ -86,17 +86,17 @@ def get_users(event: dict, current_user: dict):
     try:
         if status == 'pending':
             cur.execute(
-                """SELECT id, email, full_name, rank, badge_number, department, role, is_active, created_at
+                """SELECT id, user_id, email, full_name, role, is_active, created_at
                    FROM users WHERE is_active = false ORDER BY created_at DESC"""
             )
         elif status == 'active':
             cur.execute(
-                """SELECT id, email, full_name, rank, badge_number, department, role, is_active, created_at
+                """SELECT id, user_id, email, full_name, role, is_active, created_at
                    FROM users WHERE is_active = true ORDER BY full_name"""
             )
         else:
             cur.execute(
-                """SELECT id, email, full_name, rank, badge_number, department, role, is_active, created_at
+                """SELECT id, user_id, email, full_name, role, is_active, created_at
                    FROM users ORDER BY created_at DESC"""
             )
         
@@ -145,15 +145,6 @@ def update_user(event: dict, current_user: dict):
             if 'full_name' in body:
                 updates.append("full_name = %s")
                 params.append(body['full_name'])
-            if 'rank' in body:
-                updates.append("rank = %s")
-                params.append(body['rank'])
-            if 'badge_number' in body:
-                updates.append("badge_number = %s")
-                params.append(body['badge_number'])
-            if 'department' in body:
-                updates.append("department = %s")
-                params.append(body['department'])
             if 'role' in body and body['role'] in ['user', 'moderator', 'admin', 'manager']:
                 updates.append("role = %s")
                 params.append(body['role'])

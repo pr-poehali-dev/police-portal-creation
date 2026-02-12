@@ -86,9 +86,6 @@ def handle_register(body: dict) -> dict:
     email = body.get('email', '').strip().lower()
     password = body.get('password', '')
     full_name = body.get('full_name', '').strip()
-    rank = body.get('rank', '').strip()
-    badge_number = body.get('badge_number', '').strip()
-    department = body.get('department', '').strip()
     
     if not email or not password or not full_name:
         return {
@@ -122,12 +119,21 @@ def handle_register(body: dict) -> dict:
         password_hash = hash_password(password)
         
         cur.execute(
-            """INSERT INTO users (email, password_hash, full_name, rank, badge_number, department)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id, email, full_name, rank, badge_number, department""",
-            (email, password_hash, full_name, rank, badge_number, department)
+            """INSERT INTO users (email, password_hash, full_name)
+               VALUES (%s, %s, %s) RETURNING id, email, full_name""",
+            (email, password_hash, full_name)
         )
         user = cur.fetchone()
+        user_id_internal = user['id']
+        
+        generated_user_id = str(user_id_internal).zfill(5)
+        cur.execute(
+            "UPDATE users SET user_id = %s WHERE id = %s",
+            (generated_user_id, user_id_internal)
+        )
         conn.commit()
+        
+        user['user_id'] = generated_user_id
         
         token = generate_token()
         token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -154,14 +160,14 @@ def handle_register(body: dict) -> dict:
 
 def handle_login(body: dict) -> dict:
     """Авторизация пользователя"""
-    email = body.get('email', '').strip().lower()
+    login_input = body.get('email', '').strip()
     password = body.get('password', '')
     
-    if not email or not password:
+    if not login_input or not password:
         return {
             'statusCode': 400,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'Email and password are required'}),
+            'body': json.dumps({'error': 'Email/ID and password are required'}),
             'isBase64Encoded': False
         }
     
@@ -169,10 +175,19 @@ def handle_login(body: dict) -> dict:
     cur = conn.cursor()
     
     try:
-        cur.execute(
-            "SELECT id, email, password_hash, full_name, rank, badge_number, department, role, is_active FROM users WHERE email = %s",
-            (email,)
-        )
+        if login_input.isdigit() and len(login_input) <= 5:
+            user_id = login_input.zfill(5)
+            cur.execute(
+                "SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE user_id = %s",
+                (user_id,)
+            )
+        else:
+            email = login_input.lower()
+            cur.execute(
+                "SELECT id, user_id, email, password_hash, full_name, role, is_active FROM users WHERE email = %s",
+                (email,)
+            )
+        
         user = cur.fetchone()
         
         if not user or not verify_password(password, user['password_hash']):
@@ -234,7 +249,7 @@ def handle_verify(token: str) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cur.execute(
-            """SELECT u.id, u.email, u.full_name, u.rank, u.badge_number, u.department, u.role, u.is_active
+            """SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.is_active
                FROM users u
                JOIN sessions s ON u.id = s.user_id
                WHERE s.token_hash = %s AND s.expires_at > NOW()""",

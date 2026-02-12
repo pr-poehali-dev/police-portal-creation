@@ -2,11 +2,9 @@ const USERS_API_URL = 'https://functions.poehali.dev/348afac0-d112-4953-b5da-6ea
 
 export interface UserManagement {
   id: number;
+  user_id: string;
   email: string;
   full_name: string;
-  rank?: string;
-  badge_number?: string;
-  department?: string;
   role: string;
   is_active: boolean;
   created_at: string;
@@ -73,9 +71,6 @@ export const usersApi = {
 
   async updateUser(token: string, userId: number, data: {
     full_name?: string;
-    rank?: string;
-    badge_number?: string;
-    department?: string;
     role?: string;
   }): Promise<void> {
     const response = await fetch(USERS_API_URL, {
