@@ -166,7 +166,7 @@ def handle_register(body: dict, origin=None) -> dict:
         )
         conn.commit()
         
-        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/"
+        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=None; Max-Age=2592000; Path=/"
         
         response_headers = get_security_headers(origin)
         response_headers['X-Set-Cookie'] = cookie_value
@@ -277,7 +277,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
         user_data = dict(user)
         user_data.pop('password_hash', None)
         
-        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/"
+        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=None; Max-Age=2592000; Path=/"
         headers = get_security_headers(origin)
         headers['X-Set-Cookie'] = cookie_value
         
