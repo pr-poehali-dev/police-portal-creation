@@ -16,9 +16,9 @@ export const boloApi = {
     const response = await fetch(BOLO_API_URL, {
       method: 'GET',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -33,10 +33,9 @@ export const boloApi = {
     const response = await fetch(BOLO_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify(data),
     });
 
@@ -52,10 +51,9 @@ export const boloApi = {
     const response = await fetch(BOLO_API_URL, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({ id, ...data }),
     });
 
@@ -69,9 +67,9 @@ export const boloApi = {
     const response = await fetch(`${BOLO_API_URL}?id=${id}`, {
       method: 'DELETE',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include',
     });
 
     if (!response.ok) {
