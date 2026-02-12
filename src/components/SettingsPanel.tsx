@@ -16,6 +16,7 @@ export function SettingsPanel() {
   const [users, setUsers] = useState<UserManagement[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string>('user');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [editingUser, setEditingUser] = useState<UserManagement | null>(null);
   const [activatingUser, setActivatingUser] = useState<UserManagement | null>(null);
   const [activationRole, setActivationRole] = useState<string>('user');
@@ -29,6 +30,9 @@ export function SettingsPanel() {
     const storedUser = auth.getStoredUser();
     if (storedUser?.role) {
       setCurrentUserRole(storedUser.role);
+    }
+    if (storedUser?.id) {
+      setCurrentUserId(storedUser.id);
     }
   }, []);
 
@@ -212,14 +216,16 @@ export function SettingsPanel() {
                         <Icon name="Edit" size={16} className="mr-1" />
                         Изменить
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeactivate(user.id)}
-                      >
-                        <Icon name="Ban" size={16} className="mr-1" />
-                        Заблокировать
-                      </Button>
+                      {currentUserId !== user.id && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeactivate(user.id)}
+                        >
+                          <Icon name="Ban" size={16} className="mr-1" />
+                          Заблокировать
+                        </Button>
+                      )}
                       <Button
                         variant="destructive"
                         size="sm"

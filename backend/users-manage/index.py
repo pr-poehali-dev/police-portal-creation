@@ -144,6 +144,10 @@ def update_user(event: dict, current_user: dict):
             return success_response({'message': 'User activated successfully'})
         
         elif action == 'deactivate':
+            # Запрет на самоблокировку
+            if current_user['id'] == int(user_id):
+                return error_response(403, 'You cannot deactivate yourself')
+            
             query = f"UPDATE users SET is_active = false WHERE id = {user_id}"
             cur.execute(query)
             conn.commit()
