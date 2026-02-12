@@ -2,16 +2,18 @@ import json
 import os
 import hashlib
 import secrets
+import bcrypt
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from security import sanitize_string, sanitize_email, sanitize_user_id, validate_password, validate_role
 
 def hash_password(password: str) -> str:
-    """Хеширование пароля с солью"""
-    salt = secrets.token_hex(16)
-    pwd_hash = hashlib.sha512((password + salt).encode()).hexdigest()
-    return f"{salt}${pwd_hash}"
+    """Хеширование пароля с использованием bcrypt"""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def handler(event: dict, context) -> dict:
     """API для управления пользователями (только для admin и manager)"""
