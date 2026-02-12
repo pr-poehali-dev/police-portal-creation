@@ -73,12 +73,8 @@ def verify_password(password: str, stored_hash: str) -> bool:
     try:
         salt, pwd_hash = stored_hash.split('$')
         computed_hash = hashlib.sha512((password + salt).encode()).hexdigest()
-        print(f"DEBUG: Stored hash: {pwd_hash[:20]}...")
-        print(f"DEBUG: Computed hash: {computed_hash[:20]}...")
-        print(f"DEBUG: Match: {computed_hash == pwd_hash}")
         return computed_hash == pwd_hash
     except Exception as e:
-        print(f"DEBUG: Error in verify_password: {e}")
         return False
 
 def generate_token() -> str:
@@ -174,7 +170,7 @@ def handle_login(body: dict) -> dict:
     
     try:
         cur.execute(
-            "SELECT id, email, password_hash, full_name, rank, badge_number, department FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, full_name, rank, badge_number, department, role, is_active FROM users WHERE email = %s",
             (email,)
         )
         user = cur.fetchone()
@@ -184,6 +180,14 @@ def handle_login(body: dict) -> dict:
                 'statusCode': 401,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'error': 'Invalid email or password'}),
+                'isBase64Encoded': False
+            }
+        
+        if not user.get('is_active', False):
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Account is not activated. Please wait for administrator approval.'}),
                 'isBase64Encoded': False
             }
         
@@ -230,7 +234,7 @@ def handle_verify(token: str) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cur.execute(
-            """SELECT u.id, u.email, u.full_name, u.rank, u.badge_number, u.department
+            """SELECT u.id, u.email, u.full_name, u.rank, u.badge_number, u.department, u.role, u.is_active
                FROM users u
                JOIN sessions s ON u.id = s.user_id
                WHERE s.token_hash = %s AND s.expires_at > NOW()""",

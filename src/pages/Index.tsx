@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
 import { auth, User } from "@/lib/auth";
+import { SettingsPanel } from "@/components/SettingsPanel";
 
 type CrewStatus = "active" | "patrol" | "responding" | "offline";
 
@@ -29,7 +30,7 @@ const Index = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile">("crews");
+  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "profile" | "settings">("crews");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [crews, setCrews] = useState<Crew[]>([
@@ -341,6 +342,24 @@ const Index = () => {
                     <p>Профиль</p>
                   </TooltipContent>
                 </Tooltip>
+                {(user?.role === 'admin' || user?.role === 'manager') && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeTab === "settings" ? "secondary" : "ghost"}
+                        className={activeTab === "settings" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
+                        onClick={() => setActiveTab("settings")}
+                        size="sm"
+                      >
+                        <Icon name="Settings" size={16} className="md:mr-2" />
+                        <span className="hidden sm:inline">Настройки</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="sm:hidden">
+                      <p>Настройки</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </nav>
             </TooltipProvider>
             
@@ -549,6 +568,12 @@ const Index = () => {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {activeTab === "settings" && (user?.role === 'admin' || user?.role === 'manager') && (
+          <div className="max-w-6xl mx-auto">
+            <SettingsPanel />
           </div>
         )}
 

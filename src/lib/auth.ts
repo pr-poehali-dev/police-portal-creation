@@ -7,6 +7,8 @@ export interface User {
   rank?: string;
   badge_number?: string;
   department?: string;
+  role?: string;
+  is_active?: boolean;
 }
 
 export interface AuthResponse {
@@ -115,5 +117,9 @@ export const auth = {
 
   isAuthenticated(): boolean {
     return !!localStorage.getItem('auth_token');
+  },
+
+  getToken(): string | null {
+    return localStorage.getItem('auth_token');
   },
 };
