@@ -40,6 +40,8 @@ const Index = () => {
   const [notifications, setNotifications] = useState<Array<{id: string; message: string; time: string; type: string}>>([]);
   
   const [showNotifications, setShowNotifications] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [locationInput, setLocationInput] = useState('');
 
   const statusConfig: Record<CrewStatus, { label: string; color: string; icon: string }> = {
     active: { label: "Доступен", color: "bg-green-500", icon: "CheckCircle" },
@@ -554,10 +556,67 @@ const Index = () => {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="text-2xl mb-2">{myCrew.callsign}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
-                          <Icon name="MapPin" size={14} />
-                          {myCrew.location || 'Местоположение не указано'}
-                        </CardDescription>
+                        {editingLocation ? (
+                          <div className="flex items-center gap-2 mt-2">
+                            <Input
+                              placeholder="Введите местоположение"
+                              value={locationInput}
+                              onChange={(e) => setLocationInput(e.target.value)}
+                              className="max-w-sm"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  const token = auth.getToken();
+                                  if (!token) return;
+                                  await crewsApi.updateCrewLocation(token, myCrew.id, locationInput);
+                                  toast.success('Местоположение обновлено');
+                                  setEditingLocation(false);
+                                  loadCrews();
+                                } catch (error) {
+                                  toast.error('Ошибка', {
+                                    description: error instanceof Error ? error.message : 'Не удалось обновить местоположение'
+                                  });
+                                }
+                              }}
+                            >
+                              <Icon name="Check" size={16} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingLocation(false);
+                                setLocationInput(myCrew.location || '');
+                              }}
+                            >
+                              <Icon name="X" size={16} />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {myCrew.location && (
+                              <CardDescription className="flex items-center gap-2">
+                                <Icon name="MapPin" size={14} />
+                                {myCrew.location}
+                              </CardDescription>
+                            )}
+                            {canManageCrew(myCrew) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2"
+                                onClick={() => {
+                                  setLocationInput(myCrew.location || '');
+                                  setEditingLocation(true);
+                                }}
+                              >
+                                <Icon name="Edit" size={14} />
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="gap-1">
@@ -602,32 +661,36 @@ const Index = () => {
                         <h3 className="font-semibold mb-3">Изменить статус</h3>
                         <div className="grid grid-cols-2 gap-3">
                           <Button 
+                            size="sm"
                             variant={myCrew.status === "active" ? "default" : "outline"} 
-                            className="gap-2"
+                            className={`gap-2 ${myCrew.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}`}
                             onClick={() => handleStatusChange(myCrew.id, "active")}
                           >
                             <Icon name="CheckCircle" size={16} />
                             Доступен
                           </Button>
                           <Button 
+                            size="sm"
                             variant={myCrew.status === "patrol" ? "default" : "outline"} 
-                            className="gap-2"
+                            className={`gap-2 ${myCrew.status === "patrol" ? "bg-yellow-500 hover:bg-yellow-600" : ""}`}
                             onClick={() => handleStatusChange(myCrew.id, "patrol")}
                           >
                             <Icon name="Clock" size={16} />
                             Занят
                           </Button>
                           <Button 
+                            size="sm"
                             variant={myCrew.status === "responding" ? "default" : "outline"} 
-                            className="gap-2"
+                            className={`gap-2 ${myCrew.status === "responding" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
                             onClick={() => handleStatusChange(myCrew.id, "responding")}
                           >
                             <Icon name="AlertTriangle" size={16} />
                             Задержка
                           </Button>
                           <Button 
+                            size="sm"
                             variant={myCrew.status === "offline" ? "default" : "outline"} 
-                            className="gap-2"
+                            className={`gap-2 ${myCrew.status === "offline" ? "bg-red-600 hover:bg-red-700" : ""}`}
                             onClick={() => handleStatusChange(myCrew.id, "offline")}
                           >
                             <Icon name="AlertOctagon" size={16} />
