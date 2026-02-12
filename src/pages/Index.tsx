@@ -826,13 +826,13 @@ const Index = () => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 items-start">
                 {bolos.map((bolo) => (
-                  <Card key={bolo.id} className="relative flex flex-col">
+                  <Card key={bolo.id} className="h-full">
                     <CardHeader>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <Badge variant={bolo.type === 'person' ? 'default' : 'secondary'}>
                               {bolo.type === 'person' ? 'Личность' : 'Транспортное средство'}
                             </Badge>
@@ -843,9 +843,9 @@ const Index = () => {
                               </Badge>
                             )}
                           </div>
-                          <CardTitle className="text-xl font-bold">{bolo.mainInfo}</CardTitle>
+                          <CardTitle className="text-xl font-bold break-words">{bolo.mainInfo}</CardTitle>
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -863,14 +863,14 @@ const Index = () => {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-3 flex-1">
+                    <CardContent className="space-y-3">
                       {bolo.additionalInfo && (
                         <div>
                           <Label className="text-sm text-muted-foreground font-semibold">Дополнительные сведения</Label>
-                          <p className="text-base mt-1 leading-relaxed">{bolo.additionalInfo}</p>
+                          <p className="text-base mt-1 leading-relaxed break-words">{bolo.additionalInfo}</p>
                         </div>
                       )}
-                      <div className="text-xs text-muted-foreground pt-2 border-t mt-auto">
+                      <div className="text-xs text-muted-foreground pt-2 border-t">
                         <p>Создано: {new Date(bolo.createdAt).toLocaleString('ru-RU')}</p>
                         {bolo.createdByName && <p>Автор: {bolo.createdByName}</p>}
                       </div>
