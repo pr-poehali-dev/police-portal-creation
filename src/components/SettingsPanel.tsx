@@ -29,7 +29,6 @@ export function SettingsPanel() {
     password: ''
   });
 
-  // Логи активности
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [actionTypes, setActionTypes] = useState<string[]>([]);
@@ -167,11 +166,10 @@ export function SettingsPanel() {
     });
   };
 
-  const handleSaveEdit = async () => {
+  const handleUpdate = async () => {
     if (!editingUser) return;
     
     try {
-      // Отправляем только изменённые поля
       const updateData: {
         full_name?: string;
         role?: string;
@@ -246,38 +244,25 @@ export function SettingsPanel() {
                           user.role === 'manager' ? 'default' :
                           user.role === 'moderator' ? 'secondary' : 'outline'
                         }>
-                          {user.role === 'admin' ? 'Администратор' :
-                           user.role === 'manager' ? 'Менеджер' :
-                           user.role === 'moderator' ? 'Модератор' : 'Пользователь'}
+                          {getRoleName(user.role)}
                         </Badge>
                       </CardTitle>
                       <CardDescription>{user.email}</CardDescription>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(user)}
-                      >
-                        <Icon name="Edit" size={16} className="mr-1" />
-                        Изменить
-                      </Button>
-                      {currentUserId !== user.id && (
+                      {(currentUserRole === 'admin' || currentUserRole === 'manager') && currentUserId !== user.id && (
                         <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeactivate(user.id)}
-                          >
-                            <Icon name="Ban" size={16} className="mr-1" />
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(user)}>
+                            <Icon name="Edit" size={16} className="mr-2" />
+                            Изменить
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDeactivate(user.id)}>
+                            <Icon name="Ban" size={16} className="mr-2" />
                             Заблокировать
                           </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDeletingUser(user)}
-                          >
-                            <Icon name="Trash2" size={16} />
+                          <Button variant="destructive" size="sm" onClick={() => setDeletingUser(user)}>
+                            <Icon name="Trash2" size={16} className="mr-2" />
+                            Удалить
                           </Button>
                         </>
                       )}
@@ -295,46 +280,34 @@ export function SettingsPanel() {
           ) : pendingUsers.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                Нет пользователей, ожидающих активации
+                Нет пользователей ожидающих активации
               </CardContent>
             </Card>
           ) : (
             pendingUsers.map(user => (
-              <Card key={user.id} className="border-orange-200 bg-orange-50/50">
+              <Card key={user.id}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="flex items-center gap-2">
                         {user.full_name}
                         <Badge variant="outline" className="font-mono">ID: {user.user_id}</Badge>
-                        <Badge variant="outline" className="bg-orange-100">
-                          Ожидает активации
-                        </Badge>
                       </CardTitle>
                       <CardDescription>{user.email}</CardDescription>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Зарегистрирован: {new Date(user.created_at).toLocaleString('ru-RU')}
-                      </p>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => {
-                          setActivatingUser(user);
-                          setActivationRole('user');
-                        }}
-                      >
-                        <Icon name="CheckCircle" size={16} className="mr-1" />
-                        Активировать
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setDeletingUser(user)}
-                      >
-                        <Icon name="Trash2" size={16} />
-                      </Button>
+                      {(currentUserRole === 'admin' || currentUserRole === 'manager') && (
+                        <>
+                          <Button onClick={() => setActivatingUser(user)}>
+                            <Icon name="UserCheck" size={16} className="mr-2" />
+                            Активировать
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => setDeletingUser(user)}>
+                            <Icon name="Trash2" size={16} className="mr-2" />
+                            Удалить
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -343,7 +316,7 @@ export function SettingsPanel() {
           )}
         </TabsContent>
 
-        <TabsContent value="logs" className="space-y-4 mt-4">
+        <TabsContent value="logs" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Логи активности пользователей</CardTitle>
@@ -375,7 +348,7 @@ export function SettingsPanel() {
                 </Select>
                 <Select
                   value={logsFilters.sort_by || 'created_at'}
-                  onValueChange={(value: any) => setLogsFilters({ ...logsFilters, sort_by: value })}
+                  onValueChange={(value) => setLogsFilters({ ...logsFilters, sort_by: value as 'created_at' | 'user_name' | 'action_type' })}
                 >
                   <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="Сортировка" />
@@ -481,55 +454,19 @@ export function SettingsPanel() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+      <Dialog open={!!activatingUser} onOpenChange={(open) => !open && setActivatingUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Редактирование пользователя</DialogTitle>
+            <DialogTitle>Активация пользователя</DialogTitle>
             <DialogDescription>
-              {editingUser?.full_name} (ID: {editingUser?.user_id})
+              {activatingUser?.full_name} (ID: {activatingUser?.user_id})
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Имя и фамилия</Label>
-              <Input
-                id="edit-name"
-                value={editForm.full_name}
-                onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-user-id">ID пользователя</Label>
-              <Input
-                id="edit-user-id"
-                value={editForm.user_id}
-                onChange={(e) => setEditForm({ ...editForm, user_id: e.target.value })}
-                placeholder="00001"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-password">Новый пароль (оставьте пустым, если не хотите менять)</Label>
-              <Input
-                id="edit-password"
-                type="password"
-                value={editForm.password}
-                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                placeholder="Минимум 6 символов"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-role">Роль</Label>
-              <Select value={editForm.role} onValueChange={(value) => setEditForm({ ...editForm, role: value })}>
-                <SelectTrigger id="edit-role">
+              <Label htmlFor="role">Назначить роль</Label>
+              <Select value={activationRole} onValueChange={setActivationRole}>
+                <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -545,64 +482,6 @@ export function SettingsPanel() {
                   )}
                 </SelectContent>
               </Select>
-              {currentUserRole === 'admin' && (
-                <p className="text-xs text-muted-foreground">
-                  Администратор может назначать роли до Модератора
-                </p>
-              )}
-              {currentUserRole === 'manager' && (
-                <p className="text-xs text-muted-foreground">
-                  Менеджер может назначать роли до Администратора
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleSaveEdit} className="flex-1">
-                Сохранить
-              </Button>
-              <Button variant="outline" onClick={() => setEditingUser(null)} className="flex-1">
-                Отмена
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!activatingUser} onOpenChange={(open) => !open && setActivatingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Активация пользователя</DialogTitle>
-            <DialogDescription>
-              {activatingUser?.full_name} (ID: {activatingUser?.user_id})
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="activation-role">Назначить роль</Label>
-              <Select value={activationRole} onValueChange={setActivationRole}>
-                <SelectTrigger id="activation-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Пользователь</SelectItem>
-                  {getAvailableRoles().includes('moderator') && (
-                    <SelectItem value="moderator">Модератор</SelectItem>
-                  )}
-                  {getAvailableRoles().includes('admin') && (
-                    <SelectItem value="admin">Администратор</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              {currentUserRole === 'admin' && (
-                <p className="text-xs text-muted-foreground">
-                  Вы можете назначить роль до Модератора
-                </p>
-              )}
-              {currentUserRole === 'manager' && (
-                <p className="text-xs text-muted-foreground">
-                  Вы можете назначить роль до Администратора
-                </p>
-              )}
             </div>
             <div className="flex gap-2 pt-4">
               <Button onClick={handleActivate} className="flex-1">
@@ -615,173 +494,6 @@ export function SettingsPanel() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Удаление пользователя</DialogTitle>
-            <DialogDescription>
-              Вы действительно хотите удалить профиль пользователя <strong>{deletingUser?.full_name}</strong>?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
-              <div className="flex items-start gap-2">
-                <Icon name="AlertTriangle" size={16} className="mt-0.5" />
-                <div>
-                  <p className="font-semibold">Это действие невозможно отменить</p>
-                  <p className="mt-1 text-xs">Все данные пользователя будут удалены безвозвратно.</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="destructive" onClick={handleDelete} className="flex-1">
-                Удалить пользователя
-              </Button>
-              <Button variant="outline" onClick={() => setDeletingUser(null)} className="flex-1">
-                Отмена
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-            <CardTitle>Логи активности пользователей</CardTitle>
-            <CardDescription>
-              История действий за последние 72 часа
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Input
-                placeholder="Поиск по описанию или пользователю..."
-                value={logsFilters.search || ''}
-                onChange={(e) => setLogsFilters({ ...logsFilters, search: e.target.value })}
-                className="flex-1"
-              />
-              <Select
-                value={logsFilters.action_type || 'all'}
-                onValueChange={(value) => setLogsFilters({ ...logsFilters, action_type: value === 'all' ? undefined : value })}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Тип действия" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все типы</SelectItem>
-                  {actionTypes.map(type => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={logsFilters.sort_by || 'created_at'}
-                onValueChange={(value: any) => setLogsFilters({ ...logsFilters, sort_by: value })}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Сортировка" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="created_at">По дате</SelectItem>
-                  <SelectItem value="user_name">По пользователю</SelectItem>
-                  <SelectItem value="action_type">По типу</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setLogsFilters({ 
-                  ...logsFilters, 
-                  sort_order: logsFilters.sort_order === 'DESC' ? 'ASC' : 'DESC' 
-                })}
-              >
-                <Icon name={logsFilters.sort_order === 'DESC' ? 'ArrowDown' : 'ArrowUp'} size={16} />
-              </Button>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadLogs}
-              >
-                <Icon name="RefreshCw" size={16} className="mr-2" />
-                Обновить
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={async () => {
-                  if (!confirm('Вы уверены? Все логи будут удалены безвозвратно.')) return;
-                  try {
-                    await logsApi.deleteAllLogs();
-                    toast.success('Все логи удалены');
-                    loadLogs();
-                  } catch (error) {
-                    toast.error('Ошибка удаления логов');
-                  }
-                }}
-              >
-                <Icon name="Trash2" size={16} className="mr-2" />
-                Очистить все логи
-              </Button>
-            </div>
-
-            {logsLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Загрузка логов...</div>
-            ) : logs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Icon name="FileText" size={48} className="mx-auto mb-3 opacity-50" />
-                <p>Логов не найдено</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                {logs.map(log => (
-                  <div key={log.id} className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-xs">{log.action_type}</Badge>
-                        <span className="text-sm font-medium">{log.user_name}</span>
-                        {log.ip_address && (
-                          <span className="text-xs text-muted-foreground font-mono">IP: {log.ip_address}</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{log.action_description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(log.created_at).toLocaleString('ru-RU', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        try {
-                          await logsApi.deleteLog(log.id);
-                          toast.success('Лог удален');
-                          loadLogs();
-                        } catch (error) {
-                          toast.error('Ошибка удаления лога');
-                        }
-                      }}
-                    >
-                      <Icon name="Trash2" size={16} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-      </Tabs>
 
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent>
@@ -849,68 +561,15 @@ export function SettingsPanel() {
               </Select>
               {currentUserRole === 'admin' && (
                 <p className="text-xs text-muted-foreground">
-                  Администратор может назначать роли до Модератора
-                </p>
-              )}
-              {currentUserRole === 'manager' && (
-                <p className="text-xs text-muted-foreground">
-                  Менеджер может назначать роли до Администратора
+                  ⚠️ Администраторы могут назначать только роли user и moderator
                 </p>
               )}
             </div>
             <div className="flex gap-2 pt-4">
-              <Button onClick={handleSaveEdit} className="flex-1">
-                Сохранить
+              <Button onClick={handleUpdate} className="flex-1">
+                Сохранить изменения
               </Button>
               <Button variant="outline" onClick={() => setEditingUser(null)} className="flex-1">
-                Отмена
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!activatingUser} onOpenChange={(open) => !open && setActivatingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Активация пользователя</DialogTitle>
-            <DialogDescription>
-              {activatingUser?.full_name} (ID: {activatingUser?.user_id})
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="activation-role">Назначить роль</Label>
-              <Select value={activationRole} onValueChange={setActivationRole}>
-                <SelectTrigger id="activation-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Пользователь</SelectItem>
-                  {getAvailableRoles().includes('moderator') && (
-                    <SelectItem value="moderator">Модератор</SelectItem>
-                  )}
-                  {getAvailableRoles().includes('admin') && (
-                    <SelectItem value="admin">Администратор</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              {currentUserRole === 'admin' && (
-                <p className="text-xs text-muted-foreground">
-                  Вы можете назначить роль до Модератора
-                </p>
-              )}
-              {currentUserRole === 'manager' && (
-                <p className="text-xs text-muted-foreground">
-                  Вы можете назначить роль до Администратора
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleActivate} className="flex-1">
-                Активировать
-              </Button>
-              <Button variant="outline" onClick={() => setActivatingUser(null)} className="flex-1">
                 Отмена
               </Button>
             </div>
@@ -921,22 +580,16 @@ export function SettingsPanel() {
       <Dialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Удаление пользователя</DialogTitle>
+            <DialogTitle>Подтверждение удаления</DialogTitle>
             <DialogDescription>
-              Вы действительно хотите удалить профиль пользователя <strong>{deletingUser?.full_name}</strong>?
+              Вы действительно хотите удалить пользователя {deletingUser?.full_name}?
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
-              <div className="flex items-start gap-2">
-                <Icon name="AlertTriangle" size={16} className="mt-0.5" />
-                <div>
-                  <p className="font-semibold">Это действие невозможно отменить</p>
-                  <p className="mt-1 text-xs">Все данные пользователя будут удалены безвозвратно.</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-4">
+            <p className="text-sm text-muted-foreground">
+              Это действие необратимо. Все данные пользователя будут удалены.
+            </p>
+            <div className="flex gap-2">
               <Button variant="destructive" onClick={handleDelete} className="flex-1">
                 Удалить пользователя
               </Button>
