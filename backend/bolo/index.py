@@ -44,6 +44,9 @@ def handler(event: dict, context) -> dict:
         conn = psycopg2.connect(dsn)
         cursor = conn.cursor()
         
+        # Set search_path to the correct schema
+        cursor.execute("SET search_path TO t_p77465986_police_portal_creati")
+        
         cursor.execute("SELECT user_id, role FROM users WHERE session_token = %s", (token,))
         user_data = cursor.fetchone()
         
