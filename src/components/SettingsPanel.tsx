@@ -160,20 +160,27 @@ export function SettingsPanel() {
       const token = auth.getToken();
       if (!token) return;
       
+      // Отправляем только изменённые поля
       const updateData: {
-        full_name: string;
-        role: string;
-        email: string;
-        user_id: string;
+        full_name?: string;
+        role?: string;
+        email?: string;
+        user_id?: string;
         password?: string;
-      } = {
-        full_name: editForm.full_name,
-        role: editForm.role,
-        email: editForm.email,
-        user_id: editForm.user_id
-      };
+      } = {};
       
-      // Добавляем пароль только если он был изменен
+      if (editForm.full_name !== editingUser.full_name) {
+        updateData.full_name = editForm.full_name;
+      }
+      if (editForm.role !== editingUser.role) {
+        updateData.role = editForm.role;
+      }
+      if (editForm.email !== editingUser.email) {
+        updateData.email = editForm.email;
+      }
+      if (editForm.user_id !== editingUser.user_id) {
+        updateData.user_id = editForm.user_id;
+      }
       if (editForm.password) {
         updateData.password = editForm.password;
       }
