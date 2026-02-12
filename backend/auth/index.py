@@ -65,15 +65,20 @@ def get_db_connection():
 def hash_password(password: str) -> str:
     """Хеширование пароля с солью"""
     salt = secrets.token_hex(16)
-    pwd_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    pwd_hash = hashlib.sha512((password + salt).encode()).hexdigest()
     return f"{salt}${pwd_hash}"
 
 def verify_password(password: str, stored_hash: str) -> bool:
     """Проверка пароля"""
     try:
         salt, pwd_hash = stored_hash.split('$')
-        return hashlib.sha256((password + salt).encode()).hexdigest() == pwd_hash
-    except:
+        computed_hash = hashlib.sha512((password + salt).encode()).hexdigest()
+        print(f"DEBUG: Stored hash: {pwd_hash[:20]}...")
+        print(f"DEBUG: Computed hash: {computed_hash[:20]}...")
+        print(f"DEBUG: Match: {computed_hash == pwd_hash}")
+        return computed_hash == pwd_hash
+    except Exception as e:
+        print(f"DEBUG: Error in verify_password: {e}")
         return False
 
 def generate_token() -> str:
