@@ -214,7 +214,6 @@ const Index = () => {
               />
             </div>
             <CardTitle className="text-2xl text-center">Портал полиции</CardTitle>
-            <CardDescription className="text-center">Система управления экипажами</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={authMode} onValueChange={(v) => setAuthMode(v as 'login' | 'register')}>
@@ -295,7 +294,6 @@ const Index = () => {
               />
               <div className="hidden sm:block">
                 <h1 className="text-lg md:text-xl font-bold text-white">Портал полиции</h1>
-                <p className="text-xs md:text-sm text-white/70">Управление экипажами</p>
               </div>
             </div>
 
