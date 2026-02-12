@@ -171,6 +171,10 @@ def update_user(event: dict, current_user: dict):
                 if new_role not in ['user', 'moderator', 'admin', 'manager']:
                     return error_response(400, 'Invalid role')
                 
+                # Менеджер не может назначать роль менеджера
+                if current_user['role'] == 'manager' and new_role == 'manager':
+                    return error_response(403, 'Managers cannot assign Manager role')
+                
                 updates.append(f"role = '{new_role}'")
             if 'email' in body:
                 email = body['email'].lower().replace("'", "''")
@@ -228,6 +232,10 @@ def delete_user(event: dict, current_user: dict):
     
     if not user_id:
         return error_response(400, 'user_id is required')
+    
+    # Запрет на самоудаление
+    if current_user['id'] == int(user_id):
+        return error_response(403, 'You cannot delete yourself')
     
     conn = get_db_connection()
     cur = conn.cursor()

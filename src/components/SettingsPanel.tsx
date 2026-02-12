@@ -93,7 +93,7 @@ export function SettingsPanel() {
       return ['user', 'moderator', 'admin'];
     }
     if (currentUserRole === 'admin') {
-      return ['user', 'moderator', 'admin'];
+      return ['user', 'moderator', 'admin', 'manager'];
     }
     return ['user'];
   };
@@ -251,22 +251,24 @@ export function SettingsPanel() {
                         Изменить
                       </Button>
                       {currentUserId !== user.id && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeactivate(user.id)}
-                        >
-                          <Icon name="Ban" size={16} className="mr-1" />
-                          Заблокировать
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeactivate(user.id)}
+                          >
+                            <Icon name="Ban" size={16} className="mr-1" />
+                            Заблокировать
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setDeletingUser(user)}
+                          >
+                            <Icon name="Trash2" size={16} />
+                          </Button>
+                        </>
                       )}
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setDeletingUser(user)}
-                      >
-                        <Icon name="Trash2" size={16} />
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
