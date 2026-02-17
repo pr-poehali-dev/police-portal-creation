@@ -55,6 +55,10 @@ def handler(event: dict, context) -> dict:
             cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
             token = extract_token_from_cookie(cookies)
             return handle_update_profile(body, token, origin)
+        elif action == 'delete_self':
+            cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+            token = extract_token_from_cookie(cookies)
+            return handle_delete_self(token, client_ip, origin)
         else:
             return {
                 'statusCode': 400,
@@ -274,16 +278,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
                 'isBase64Encoded': False
             }
         
-        if not user.get('is_active', False):
-            record_attempt(client_ip, False)
-            return {
-                'statusCode': 403,
-                'headers': get_security_headers(),
-                'body': json.dumps({'error': 'Account is not activated. Please wait for administrator approval.'}),
-                'isBase64Encoded': False
-            }
-        
-        # Успешная попытка входа
+        # Успешная попытка входа (даже для неактивных пользователей)
         record_attempt(client_ip, True)
         print(f"SECURITY: Successful login for: {login_input} from IP: {client_ip}")
         
@@ -502,6 +497,83 @@ def handle_update_profile(body: dict, token: str, origin=None) -> dict:
         }
     except Exception as e:
         print(f"ERROR handle_update_profile: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': get_security_headers(origin),
+            'body': json.dumps({'error': str(e)}),
+            'isBase64Encoded': False
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+def handle_delete_self(token: str, client_ip: str, origin=None) -> dict:
+    """Самоудаление неактивированного аккаунта"""
+    if not token:
+        return {
+            'statusCode': 401,
+            'headers': get_security_headers(origin),
+            'body': json.dumps({'error': 'Token required'}),
+            'isBase64Encoded': False
+        }
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        cur.execute(
+            """SELECT u.id, u.email, u.full_name, u.is_active
+               FROM users u
+               JOIN sessions s ON u.id = s.user_id
+               WHERE s.token_hash = %s AND s.expires_at > NOW()""",
+            (token_hash,)
+        )
+        user = cur.fetchone()
+        
+        if not user:
+            return {
+                'statusCode': 401,
+                'headers': get_security_headers(origin),
+                'body': json.dumps({'error': 'Invalid or expired token'}),
+                'isBase64Encoded': False
+            }
+        
+        # Только неактивированные пользователи могут удалить себя
+        if user['is_active']:
+            return {
+                'statusCode': 403,
+                'headers': get_security_headers(origin),
+                'body': json.dumps({'error': 'Активированные пользователи не могут удалить свой аккаунт самостоятельно'}),
+                'isBase64Encoded': False
+            }
+        
+        user_id = user['id']
+        user_name = user['full_name']
+        user_email = user['email']
+        
+        # Удаляем все связанные данные
+        cur.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM crew_members WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        
+        try:
+            write_log(user_id, user_name, 'AUTH', 
+                      f'Самоудаление неактивированного аккаунта: {user_name} ({user_email})', 
+                      'user', user_id, client_ip)
+        except Exception as e:
+            print(f"Log error: {e}")
+        
+        return {
+            'statusCode': 200,
+            'headers': get_security_headers(origin),
+            'body': json.dumps({'message': 'Account deleted successfully'}),
+            'isBase64Encoded': False
+        }
+    except Exception as e:
+        print(f"ERROR handle_delete_self: {str(e)}")
         return {
             'statusCode': 500,
             'headers': get_security_headers(origin),

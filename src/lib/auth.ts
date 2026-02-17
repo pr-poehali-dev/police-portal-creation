@@ -148,4 +148,25 @@ export const auth = {
     
     return result;
   },
+
+  async deleteSelf(): Promise<void> {
+    const response = await fetch(AUTH_API_URL, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'delete_self',
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Delete failed');
+    }
+
+    localStorage.removeItem('user');
+    document.cookie = 'auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/';
+  },
 };
