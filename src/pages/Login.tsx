@@ -83,7 +83,7 @@ const Login = () => {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email или ID</Label>
-                  <Input id="login-email" name="email" placeholder="00001 или manager@demo.ru" required />
+                  <Input id="login-email" name="email" placeholder="Введите email или ID" required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Пароль</Label>
@@ -99,17 +99,6 @@ const Login = () => {
                   </label>
                 </div>
                 <Button type="submit" className="w-full">Войти</Button>
-                
-                <div className="mt-4 p-3 bg-muted rounded-lg text-xs space-y-1.5">
-                  <p className="font-semibold text-foreground mb-2">Тестовые учетные записи:</p>
-                  <div className="space-y-1">
-                    <p><span className="font-medium">Менеджер:</span> 00001 или manager@demo.ru</p>
-                    <p><span className="font-medium">Администратор:</span> 00002 или admin@demo.ru</p>
-                    <p><span className="font-medium">Модератор:</span> 00003 или moderator@demo.ru</p>
-                    <p><span className="font-medium">Пользователь:</span> 00004 или user@demo.ru</p>
-                    <p className="pt-1 text-muted-foreground">Пароль для всех: <span className="font-medium">demo123</span></p>
-                  </div>
-                </div>
               </form>
             </TabsContent>
             <TabsContent value="register">
