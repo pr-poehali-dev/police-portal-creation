@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import Icon from "@/components/ui/icon";
 import { auth, User } from "@/lib/auth";
@@ -20,14 +20,16 @@ import { notificationsApi, Notification } from "@/lib/notifications-api";
 
 type CrewStatus = "available" | "busy" | "delay" | "need_help";
 
-const Index = () => {
+interface IndexProps {
+  initialTab?: "my-crew" | "crews" | "bolo" | "profile" | "settings";
+}
+
+const Index = ({ initialTab = "crews" }: IndexProps) => {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "bolo" | "profile" | "settings">(
-    () => (localStorage.getItem('active_tab') as "my-crew" | "crews" | "bolo" | "profile" | "settings") || "crews"
-  );
+  const [activeTab, setActiveTab] = useState<"my-crew" | "crews" | "bolo" | "profile" | "settings">(initialTab);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [crews, setCrews] = useState<ApiCrew[]>([]);
@@ -68,14 +70,22 @@ const Index = () => {
       if (storedUser) {
         const verifiedUser = await auth.verify();
         if (verifiedUser) {
+          if (!verifiedUser.is_active) {
+            navigate('/pending');
+            return;
+          }
           setUser(verifiedUser);
           setIsAuthenticated(true);
+        } else {
+          navigate('/login');
         }
+      } else {
+        navigate('/login');
       }
       setLoading(false);
     };
     checkAuth();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -289,64 +299,9 @@ const Index = () => {
     return false;
   };
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const rememberMe = formData.get('rememberMe') === 'on';
-
-    try {
-      const result = await auth.login(email, password, rememberMe);
-      setUser(result.user);
-      setIsAuthenticated(true);
-      
-      const loginNotification = {
-        id: Date.now().toString(),
-        message: `${result.user.full_name} вошёл в систему`,
-        time: 'Только что',
-        type: 'success'
-      };
-      setNotifications(prev => [loginNotification, ...prev]);
-      
-      toast.success('Вход выполнен', {
-        description: `Добро пожаловать, ${result.user.full_name}!`
-      });
-    } catch (error) {
-      toast.error('Ошибка входа', {
-        description: error instanceof Error ? error.message : 'Неверный email или пароль'
-      });
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      email: formData.get('email') as string,
-      password: formData.get('password') as string,
-      full_name: formData.get('full_name') as string,
-    };
-
-    try {
-      await auth.register(data);
-      toast.success('Регистрация завершена', {
-        description: 'Ваш аккаунт ожидает активации администратором. Вы получите доступ после одобрения.'
-      });
-      setAuthMode('login');
-    } catch (error) {
-      toast.error('Ошибка регистрации', {
-        description: error instanceof Error ? error.message : 'Проверьте введённые данные'
-      });
-    }
-  };
-
   const handleLogout = async () => {
-    const userName = user?.full_name || 'Пользователь';
     await auth.logout();
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('active_tab');
+    navigate('/login');
     toast.info('Выход выполнен');
   };
 
@@ -364,147 +319,8 @@ const Index = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary/90 to-primary/20 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-2xl">
-          <CardHeader className="space-y-1">
-            <div className="flex justify-center mb-4">
-              <img 
-                src="https://cdn.poehali.dev/projects/a58cc482-61d1-44bc-80a2-439e4fdb9f16/bucket/606da78c-a0cf-4d2e-b111-08e476ccf73a.png" 
-                alt="Police Logo"
-                className="w-24 h-24 object-contain"
-              />
-            </div>
-            <CardTitle className="text-2xl text-center">Портал полиции</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={authMode} onValueChange={(v) => setAuthMode(v as 'login' | 'register')}>
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="login">Вход</TabsTrigger>
-                <TabsTrigger value="register">Регистрация</TabsTrigger>
-              </TabsList>
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email или ID</Label>
-                    <Input id="login-email" name="email" placeholder="00001 или manager@demo.ru" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Пароль</Label>
-                    <Input id="login-password" name="password" type="password" placeholder="Введите пароль" required />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="rememberMe" name="rememberMe" />
-                    <label
-                      htmlFor="rememberMe"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Запомнить меня
-                    </label>
-                  </div>
-                  <Button type="submit" className="w-full">Войти</Button>
-                  
-                  <div className="mt-4 p-3 bg-muted rounded-lg text-xs space-y-1.5">
-                    <p className="font-semibold text-foreground mb-2">Тестовые учетные записи:</p>
-                    <div className="space-y-1">
-                      <p><span className="font-medium">Менеджер:</span> 00001 или manager@demo.ru</p>
-                      <p><span className="font-medium">Администратор:</span> 00002 или admin@demo.ru</p>
-                      <p><span className="font-medium">Модератор:</span> 00003 или moderator@demo.ru</p>
-                      <p><span className="font-medium">Пользователь:</span> 00004 или user@demo.ru</p>
-                      <p className="pt-1 text-muted-foreground">Пароль для всех: <span className="font-medium">demo123</span></p>
-                    </div>
-                  </div>
-                </form>
-              </TabsContent>
-              <TabsContent value="register">
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-email">Email</Label>
-                    <Input id="reg-email" name="email" type="email" placeholder="user@example.com" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-password">Пароль</Label>
-                    <Input id="reg-password" name="password" type="password" placeholder="Минимум 6 символов" required minLength={6} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-full-name">Имя и фамилия</Label>
-                    <Input id="reg-full-name" name="full_name" placeholder="Джон Смит" required />
-                  </div>
-                  <Button type="submit" className="w-full">Зарегистрироваться</Button>
-                  <p className="text-xs text-muted-foreground text-center mt-2">
-                    После регистрации ваш аккаунт ожидает активации администратором
-                  </p>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Экран для неактивированных пользователей
-  if (isAuthenticated && user && !user.is_active) {
-    const handleDeleteAccount = async () => {
-      if (!confirm('Вы действительно хотите удалить свой аккаунт? Данное действие невозможно отменить.')) {
-        return;
-      }
-
-      try {
-        await auth.deleteSelf();
-        setUser(null);
-        setIsAuthenticated(false);
-        toast.success('Аккаунт удалён');
-      } catch (error) {
-        toast.error('Ошибка', {
-          description: error instanceof Error ? error.message : 'Не удалось удалить аккаунт'
-        });
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary/90 to-primary/20 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-2xl">
-          <CardHeader className="space-y-1">
-            <div className="flex justify-center mb-4">
-              <img 
-                src="https://cdn.poehali.dev/projects/a58cc482-61d1-44bc-80a2-439e4fdb9f16/bucket/606da78c-a0cf-4d2e-b111-08e476ccf73a.png" 
-                alt="Police Logo"
-                className="w-24 h-24 object-contain"
-              />
-            </div>
-            <CardTitle className="text-2xl text-center">Ожидание активации</CardTitle>
-            <CardDescription className="text-center">
-              {user.full_name} ({user.email})
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground text-center">
-                Ваш аккаунт ожидает активации администратором. Вы получите доступ ко всем функциям после одобрения.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleLogout}
-                className="w-full"
-              >
-                Выйти
-              </Button>
-              <Button 
-                variant="destructive" 
-                onClick={handleDeleteAccount}
-                className="w-full"
-              >
-                Удалить аккаунт
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  if (!isAuthenticated || !user) {
+    return null;
   }
 
   return (
@@ -530,7 +346,7 @@ const Index = () => {
                     <Button
                       variant={activeTab === "my-crew" ? "secondary" : "ghost"}
                       className={activeTab === "my-crew" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                      onClick={() => setActiveTab("my-crew")}
+                      onClick={() => navigate('/main')}
                       size="sm"
                     >
                       <Icon name="Users" size={16} className="md:mr-2" />
@@ -546,7 +362,7 @@ const Index = () => {
                     <Button
                       variant={activeTab === "crews" ? "secondary" : "ghost"}
                       className={activeTab === "crews" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                      onClick={() => setActiveTab("crews")}
+                      onClick={() => navigate('/units')}
                       size="sm"
                     >
                       <Icon name="Shield" size={16} className="md:mr-2" />
@@ -562,7 +378,7 @@ const Index = () => {
                     <Button
                       variant={activeTab === "bolo" ? "secondary" : "ghost"}
                       className={activeTab === "bolo" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                      onClick={() => setActiveTab("bolo")}
+                      onClick={() => navigate('/bolo')}
                       size="sm"
                     >
                       <Icon name="Search" size={16} className="md:mr-2" />
@@ -578,7 +394,7 @@ const Index = () => {
                     <Button
                       variant={activeTab === "profile" ? "secondary" : "ghost"}
                       className={activeTab === "profile" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                      onClick={() => setActiveTab("profile")}
+                      onClick={() => navigate('/profile')}
                       size="sm"
                     >
                       <Icon name="User" size={16} className="md:mr-2" />
@@ -595,7 +411,7 @@ const Index = () => {
                       <Button
                         variant={activeTab === "settings" ? "secondary" : "ghost"}
                         className={activeTab === "settings" ? "text-foreground" : "text-white hover:text-white hover:bg-white/10"}
-                        onClick={() => setActiveTab("settings")}
+                        onClick={() => navigate('/settings')}
                         size="sm"
                       >
                         <Icon name="Settings" size={16} className="md:mr-2" />
