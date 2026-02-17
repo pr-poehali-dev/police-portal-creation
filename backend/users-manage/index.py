@@ -228,6 +228,8 @@ def update_user(event: dict, current_user: dict, origin=None):
                     full_name = sanitize_string(body['full_name'], 100)
                     updates.append("full_name = %s")
                     params.append(full_name)
+                    updates.append("last_name_change = NOW()")
+                
                 
                 if 'role' in body:
                     new_role = validate_role(body['role'])

@@ -412,7 +412,7 @@ def handle_update_profile(body: dict, token: str, origin=None) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cur.execute(
-            """SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.password_hash
+            """SELECT u.id, u.user_id, u.email, u.full_name, u.role, u.password_hash, u.last_name_change
                FROM users u
                JOIN sessions s ON u.id = s.user_id
                WHERE s.token_hash = %s AND s.expires_at > NOW()""",
@@ -433,8 +433,32 @@ def handle_update_profile(body: dict, token: str, origin=None) -> dict:
         params = []
         
         if full_name:
+            # Проверка ограничения на смену имени (только для обычных пользователей)
+            if user['role'] not in ['moderator', 'admin', 'manager']:
+                if user['last_name_change']:
+                    cur.execute(
+                        "SELECT EXTRACT(EPOCH FROM (NOW() - %s)) / 3600 as hours_passed",
+                        (user['last_name_change'],)
+                    )
+                    result = cur.fetchone()
+                    hours_passed = result['hours_passed'] if result else 999
+                    
+                    if hours_passed < 6:
+                        remaining_hours = 6 - hours_passed
+                        remaining_minutes = int(remaining_hours * 60)
+                        return {
+                            'statusCode': 400,
+                            'headers': get_security_headers(origin),
+                            'body': json.dumps({
+                                'error': f'Вы сможете изменить имя через {remaining_minutes} минут'
+                            }),
+                            'isBase64Encoded': False
+                        }
+            
             updates.append("full_name = %s")
             params.append(full_name)
+            updates.append("last_name_change = NOW()")
+        
         
         if current_password and new_password:
             if not verify_password(current_password, user['password_hash']):
