@@ -46,18 +46,13 @@ def handler(event: dict, context) -> dict:
         elif action == 'login':
             return handle_login(body, client_ip, origin)
         elif action == 'verify':
-            cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
-            print(f"DEBUG verify: cookies={cookies[:50] if cookies else 'EMPTY'}...")
-            token = extract_token_from_cookie(cookies)
-            print(f"DEBUG verify: extracted token={token[:20] if token else 'EMPTY'}...")
+            token = extract_token(headers)
             return handle_verify(token, origin)
         elif action == 'update_profile':
-            cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
-            token = extract_token_from_cookie(cookies)
+            token = extract_token(headers)
             return handle_update_profile(body, token, origin)
         elif action == 'delete_self':
-            cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
-            token = extract_token_from_cookie(cookies)
+            token = extract_token(headers)
             return handle_delete_self(token, client_ip, origin)
         else:
             return {
@@ -130,6 +125,16 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
+def extract_token(headers: dict) -> str:
+    """Извлечение токена из Authorization header или Cookie"""
+    auth_header = headers.get('Authorization', '') or headers.get('authorization', '') or \
+                  headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    if auth_header.startswith('Bearer '):
+        return auth_header[7:]
+    cookies = headers.get('Cookie', '') or headers.get('cookie', '') or \
+              headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+    return extract_token_from_cookie(cookies)
+
 def handle_register(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
     """Регистрация нового пользователя"""
     try:
@@ -190,18 +195,14 @@ def handle_register(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict
         )
         conn.commit()
         
-        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=None; Max-Age=2592000; Path=/; Domain=.poehali.dev"
-        
-        response_headers = get_security_headers(origin)
-        response_headers['X-Set-Cookie'] = cookie_value
-        
         write_log(user['id'], full_name, 'AUTH', 
                   f'Зарегистрирован новый аккаунт: {full_name} ({email})', 'user', user['id'], client_ip)
         
         return {
             'statusCode': 201,
-            'headers': response_headers,
+            'headers': get_security_headers(origin),
             'body': json.dumps({
+                'token': token,
                 'user': dict(user)
             }),
             'isBase64Encoded': False
@@ -295,17 +296,14 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
         user_data = dict(user)
         user_data.pop('password_hash', None)
         
-        cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=None; Max-Age=2592000; Path=/; Domain=.poehali.dev"
-        headers = get_security_headers(origin)
-        headers['X-Set-Cookie'] = cookie_value
-        
         write_log(user['id'], user['full_name'], 'AUTH', 
                   f'Вход в систему: {user["full_name"]}', 'user', user['id'], client_ip)
         
         return {
             'statusCode': 200,
-            'headers': headers,
+            'headers': get_security_headers(origin),
             'body': json.dumps({
+                'token': token,
                 'user': user_data
             }),
             'isBase64Encoded': False

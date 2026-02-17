@@ -28,6 +28,16 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
+def extract_token(headers: dict) -> str:
+    """Извлечение токена из Authorization header или Cookie"""
+    auth_header = headers.get('Authorization', '') or headers.get('authorization', '') or \
+                  headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    if auth_header.startswith('Bearer '):
+        return auth_header[7:]
+    cookies = headers.get('Cookie', '') or headers.get('cookie', '') or \
+              headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+    return extract_token_from_cookie(cookies)
+
 def write_log(dsn, user_id, user_name, action_type, action_description, target_type=None, target_id=None, ip_address='0.0.0.0'):
     """Записать лог активности в БД"""
     try:
@@ -70,8 +80,7 @@ def handler(event: dict, context) -> dict:
                 'isBase64Encoded': False
             }
         
-        cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
-        token = extract_token_from_cookie(cookies)
+        token = extract_token(headers)
         
         if not token:
             return {

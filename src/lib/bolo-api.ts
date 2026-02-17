@@ -1,3 +1,5 @@
+import { auth } from './auth';
+
 const BOLO_API_URL = 'https://functions.poehali.dev/24bef935-864e-4498-ae86-abd74ff7bb01';
 
 export interface Bolo {
@@ -15,10 +17,7 @@ export const boloApi = {
   async getAll(): Promise<Bolo[]> {
     const response = await fetch(BOLO_API_URL, {
       method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
     });
 
     if (!response.ok) {
@@ -32,10 +31,7 @@ export const boloApi = {
   async create(data: Omit<Bolo, 'id' | 'createdAt' | 'updatedAt' | 'createdByName'>): Promise<Bolo> {
     const response = await fetch(BOLO_API_URL, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
       body: JSON.stringify(data),
     });
 
@@ -50,10 +46,7 @@ export const boloApi = {
   async update(id: number, data: Partial<Omit<Bolo, 'id' | 'createdAt' | 'updatedAt' | 'createdByName'>>): Promise<void> {
     const response = await fetch(BOLO_API_URL, {
       method: 'PUT',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
       body: JSON.stringify({ id, ...data }),
     });
 
@@ -66,10 +59,7 @@ export const boloApi = {
   async delete(id: number): Promise<void> {
     const response = await fetch(`${BOLO_API_URL}?id=${id}`, {
       method: 'DELETE',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
     });
 
     if (!response.ok) {

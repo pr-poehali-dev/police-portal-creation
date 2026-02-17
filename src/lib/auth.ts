@@ -15,6 +15,15 @@ export interface AuthResponse {
 }
 
 export const auth = {
+  getToken(): string | null {
+    return localStorage.getItem('auth_token');
+  },
+
+  getAuthHeader(): Record<string, string> {
+    const token = this.getToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  },
+
   async register(data: {
     email: string;
     password: string;
@@ -22,14 +31,8 @@ export const auth = {
   }, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'register',
-        ...data,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'register', ...data }),
     });
 
     if (!response.ok) {
@@ -38,28 +41,17 @@ export const auth = {
     }
 
     const result = await response.json();
+    if (result.token) localStorage.setItem('auth_token', result.token);
     localStorage.setItem('user', JSON.stringify(result.user));
-    
     return result;
   },
 
   async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthResponse> {
-    console.log('Login attempt for:', email);
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'login',
-        email,
-        password,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email, password }),
     });
-
-    console.log('Login response status:', response.status);
-    console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const error = await response.json();
@@ -67,29 +59,24 @@ export const auth = {
     }
 
     const result = await response.json();
-    console.log('Login result user:', result.user);
+    if (result.token) localStorage.setItem('auth_token', result.token);
     localStorage.setItem('user', JSON.stringify(result.user));
-    
     return result;
   },
 
   async verify(): Promise<User | null> {
     try {
+      const token = this.getToken();
+      if (!token) return null;
+
       const response = await fetch(AUTH_API_URL, {
         method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'verify',
-        }),
+        headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+        body: JSON.stringify({ action: 'verify' }),
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          this.logout();
-        }
+        if (response.status === 401) this.logout();
         return null;
       }
 
@@ -98,14 +85,13 @@ export const auth = {
       return result.user;
     } catch (error) {
       console.error('Verify error:', error);
-      const storedUser = this.getStoredUser();
-      return storedUser;
+      return this.getStoredUser();
     }
   },
 
-  async logout() {
+  logout() {
+    localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
-    document.cookie = 'auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/';
   },
 
   getStoredUser(): User | null {
@@ -119,11 +105,7 @@ export const auth = {
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('user');
-  },
-
-  getToken(): string | null {
-    return null;
+    return !!localStorage.getItem('auth_token');
   },
 
   async updateProfile(data: {
@@ -133,14 +115,8 @@ export const auth = {
   }): Promise<{ user: User }> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'update_profile',
-        ...data,
-      }),
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+      body: JSON.stringify({ action: 'update_profile', ...data }),
     });
 
     if (!response.ok) {
@@ -150,20 +126,14 @@ export const auth = {
 
     const result = await response.json();
     localStorage.setItem('user', JSON.stringify(result.user));
-    
     return result;
   },
 
   async deleteSelf(): Promise<void> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'delete_self',
-      }),
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+      body: JSON.stringify({ action: 'delete_self' }),
     });
 
     if (!response.ok) {
@@ -171,7 +141,6 @@ export const auth = {
       throw new Error(error.error || 'Delete failed');
     }
 
-    localStorage.removeItem('user');
-    document.cookie = 'auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/';
+    this.logout();
   },
 };

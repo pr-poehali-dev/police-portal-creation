@@ -26,6 +26,16 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
+def extract_token(headers: dict) -> str:
+    """Извлечение токена из Authorization header или Cookie"""
+    auth_header = headers.get('Authorization', '') or headers.get('authorization', '') or \
+                  headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    if auth_header.startswith('Bearer '):
+        return auth_header[7:]
+    cookies = headers.get('Cookie', '') or headers.get('cookie', '') or \
+              headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+    return extract_token_from_cookie(cookies)
+
 def get_cors_headers(origin=None):
     """Возвращает CORS headers с правильным Origin"""
     allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
@@ -52,8 +62,7 @@ def handler(event: dict, context) -> dict:
             'isBase64Encoded': False
         }
     
-    cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
-    token = extract_token_from_cookie(cookies)
+    token = extract_token(headers)
     
     if not token:
         return error_response(401, 'Authentication required', origin)

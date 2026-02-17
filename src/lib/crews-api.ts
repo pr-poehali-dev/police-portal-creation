@@ -1,3 +1,5 @@
+import { auth } from './auth';
+
 const CREWS_API_URL = 'https://functions.poehali.dev/f4f45aca-ba9d-4afa-b89b-d082668a4ee4';
 
 export interface CrewMember {
@@ -20,26 +22,18 @@ export interface Crew {
 
 export const crewsApi = {
   async getCrews(): Promise<Crew[]> {
-    try {
-      const response = await fetch(CREWS_API_URL, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    const response = await fetch(CREWS_API_URL, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
+    });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }));
-        throw new Error(error.error || 'Failed to fetch crews');
-      }
-
-      const result = await response.json();
-      return result.crews || [];
-    } catch (error) {
-      console.error('Fetch error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(error.error || 'Failed to fetch crews');
     }
+
+    const result = await response.json();
+    return result.crews || [];
   },
 
   async createCrew(data: {
@@ -47,38 +41,23 @@ export const crewsApi = {
     location?: string;
     second_member_id?: number;
   }): Promise<void> {
-    try {
-      const response = await fetch(CREWS_API_URL, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+    const response = await fetch(CREWS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
+      body: JSON.stringify(data),
+    });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }));
-        throw new Error(error.error || 'Failed to create crew');
-      }
-    } catch (error) {
-      console.error('Fetch error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(error.error || 'Failed to create crew');
     }
   },
 
   async updateCrewStatus(crewId: number, status: string): Promise<void> {
     const response = await fetch(CREWS_API_URL, {
       method: 'PUT',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        crew_id: crewId,
-        action: 'update_status',
-        status,
-      }),
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
+      body: JSON.stringify({ crew_id: crewId, action: 'update_status', status }),
     });
 
     if (!response.ok) {
@@ -90,15 +69,8 @@ export const crewsApi = {
   async updateCrewLocation(crewId: number, location: string): Promise<void> {
     const response = await fetch(CREWS_API_URL, {
       method: 'PUT',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        crew_id: crewId,
-        action: 'update_location',
-        location,
-      }),
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
+      body: JSON.stringify({ crew_id: crewId, action: 'update_location', location }),
     });
 
     if (!response.ok) {
@@ -110,10 +82,7 @@ export const crewsApi = {
   async deleteCrew(crewId: number): Promise<void> {
     const response = await fetch(`${CREWS_API_URL}?crew_id=${crewId}`, {
       method: 'DELETE',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
     });
 
     if (!response.ok) {
@@ -125,39 +94,29 @@ export const crewsApi = {
   async getAvailableUsers(): Promise<{ id: number; user_id: string; full_name: string; email: string }[]> {
     const usersResponse = await fetch('https://functions.poehali.dev/348afac0-d112-4953-b5da-6eafc2cf5bec?status=active', {
       method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
     });
 
-    if (!usersResponse.ok) {
-      throw new Error('Failed to fetch users');
-    }
+    if (!usersResponse.ok) throw new Error('Failed to fetch users');
 
     const usersData = await usersResponse.json();
-    
+
     const crewsResponse = await fetch(CREWS_API_URL, {
       method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
     });
 
-    if (!crewsResponse.ok) {
-      throw new Error('Failed to fetch crews');
-    }
+    if (!crewsResponse.ok) throw new Error('Failed to fetch crews');
 
     const crewsData = await crewsResponse.json();
-    
+
     const usersInCrews = new Set();
     crewsData.crews.forEach((crew: Crew) => {
       crew.members.forEach((member: CrewMember) => {
         usersInCrews.add(member.user_id);
       });
     });
-    
+
     return usersData.users.filter((user: { id: number }) => !usersInCrews.has(user.id));
   },
 };

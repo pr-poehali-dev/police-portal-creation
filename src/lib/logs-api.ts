@@ -1,3 +1,5 @@
+import { auth } from './auth';
+
 const LOGS_API_URL = 'https://functions.poehali.dev/348afac0-d112-4953-b5da-6eafc2cf5bec';
 
 export interface ActivityLog {
@@ -30,7 +32,7 @@ export const logsApi = {
   async getLogs(params?: LogsParams): Promise<LogsResponse> {
     const queryParams = new URLSearchParams();
     queryParams.set('resource', 'logs');
-    
+
     if (params) {
       if (params.search) queryParams.set('search', params.search);
       if (params.action_type) queryParams.set('action_type', params.action_type);
@@ -41,12 +43,10 @@ export const logsApi = {
 
     const response = await fetch(`${LOGS_API_URL}?${queryParams}`, {
       method: 'GET',
-      credentials: 'include',
+      headers: { ...auth.getAuthHeader() },
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch logs');
-    }
+    if (!response.ok) throw new Error('Failed to fetch logs');
 
     return response.json();
   },
@@ -62,16 +62,11 @@ export const logsApi = {
 
     const response = await fetch(`${LOGS_API_URL}?${queryParams}`, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
       body: JSON.stringify(log),
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to create log');
-    }
+    if (!response.ok) throw new Error('Failed to create log');
 
     return response.json();
   },
@@ -83,12 +78,10 @@ export const logsApi = {
 
     const response = await fetch(`${LOGS_API_URL}?${queryParams}`, {
       method: 'DELETE',
-      credentials: 'include',
+      headers: { ...auth.getAuthHeader() },
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to delete log');
-    }
+    if (!response.ok) throw new Error('Failed to delete log');
   },
 
   async deleteAllLogs(): Promise<{ deleted: number }> {
@@ -98,12 +91,10 @@ export const logsApi = {
 
     const response = await fetch(`${LOGS_API_URL}?${queryParams}`, {
       method: 'DELETE',
-      credentials: 'include',
+      headers: { ...auth.getAuthHeader() },
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to delete all logs');
-    }
+    if (!response.ok) throw new Error('Failed to delete all logs');
 
     return response.json();
   },
