@@ -65,6 +65,10 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
   };
 
   useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
     const checkAuth = async () => {
       const storedUser = auth.getStoredUser();
       if (storedUser) {
