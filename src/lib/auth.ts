@@ -44,6 +44,7 @@ export const auth = {
   },
 
   async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthResponse> {
+    console.log('Login attempt for:', email);
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
       credentials: 'include',
@@ -57,12 +58,16 @@ export const auth = {
       }),
     });
 
+    console.log('Login response status:', response.status);
+    console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Login failed');
     }
 
     const result = await response.json();
+    console.log('Login result user:', result.user);
     localStorage.setItem('user', JSON.stringify(result.user));
     
     return result;
