@@ -183,8 +183,11 @@ def handler(event: dict, context) -> dict:
             cursor.close()
             conn.close()
             
-            write_log(dsn, user_id, user_full_name, 'BOLO', 
-                      f'Создана ориентировка: {main_info[:100]}', 'bolo', new_id, client_ip)
+            try:
+                write_log(dsn, user_id, user_full_name, 'BOLO', 
+                          f'Создана ориентировка: {main_info[:100]}', 'bolo', new_id, client_ip)
+            except Exception as e:
+                print(f"Log error: {e}")
             
             return {
                 'statusCode': 201,
@@ -254,12 +257,15 @@ def handler(event: dict, context) -> dict:
             cursor.close()
             conn.close()
             
-            write_log(dsn, user_id, user_full_name, 'BOLO', 
-                      f'Обновлена ориентировка: {main_info[:100]}', 'bolo', bolo_id, client_ip)
+            try:
+                write_log(dsn, user_id, user_full_name, 'BOLO', 
+                          f'Обновлена ориентировка: {main_info[:100]}', 'bolo', bolo_id, client_ip)
+            except Exception as e:
+                print(f"Log error: {e}")
             
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({'success': True}),
                 'isBase64Encoded': False
             }
@@ -298,12 +304,15 @@ def handler(event: dict, context) -> dict:
             cursor.close()
             conn.close()
             
-            write_log(dsn, user_id, user_full_name, 'BOLO', 
-                      f'Удалена ориентировка: {bolo_main_info[:100]}', 'bolo', int(bolo_id), client_ip)
+            try:
+                write_log(dsn, user_id, user_full_name, 'BOLO', 
+                          f'Удалена ориентировка: {bolo_main_info[:100]}', 'bolo', int(bolo_id), client_ip)
+            except Exception as e:
+                print(f"Log error: {e}")
             
             return {
                 'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({'success': True}),
                 'isBase64Encoded': False
             }
@@ -313,7 +322,7 @@ def handler(event: dict, context) -> dict:
             conn.close()
             return {
                 'statusCode': 405,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(origin),
                 'body': json.dumps({'error': 'Method not allowed'}),
                 'isBase64Encoded': False
             }
@@ -324,7 +333,7 @@ def handler(event: dict, context) -> dict:
         traceback.print_exc()
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(origin),
             'body': json.dumps({'error': str(e)}),
             'isBase64Encoded': False
         }

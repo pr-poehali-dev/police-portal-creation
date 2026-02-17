@@ -183,11 +183,11 @@ def create_crew(event: dict, current_user: dict, origin=None):
         if second_member_id:
             cur.execute("SELECT id FROM crew_members WHERE user_id = %s", (second_member_id,))
             if cur.fetchone():
-                return error_response(400, 'Selected user is already in a crew')
+                return error_response(400, 'Selected user is already in a crew', origin)
         
         cur.execute("SELECT id FROM crew_members WHERE user_id = %s", (current_user['id'],))
         if cur.fetchone():
-            return error_response(400, 'You are already in a crew')
+            return error_response(400, 'You are already in a crew', origin)
         
         cur.execute(
             """INSERT INTO crews (callsign, location, status, creator_id)
@@ -209,12 +209,15 @@ def create_crew(event: dict, current_user: dict, origin=None):
         
         conn.commit()
         
-        request_context = event.get('requestContext', {})
-        client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
-        write_log(current_user['id'], current_user['full_name'], 'CREW', 
-                  f'Создан экипаж {callsign}', 'crew', crew_id, client_ip)
+        try:
+            request_context = event.get('requestContext', {})
+            client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+            write_log(current_user['id'], current_user['full_name'], 'CREW', 
+                      f'Создан экипаж {callsign}', 'crew', crew_id, client_ip)
+        except Exception as e:
+            print(f"Log error: {e}")
         
-        return success_response({'message': 'Crew created successfully', 'crew_id': crew_id})
+        return success_response({'message': 'Crew created successfully', 'crew_id': crew_id}, origin)
     finally:
         cur.close()
         conn.close()
@@ -226,7 +229,7 @@ def update_crew(event: dict, current_user: dict, origin=None):
     action = body.get('action')
     
     if not crew_id:
-        return error_response(400, 'crew_id is required')
+        return error_response(400, 'crew_id is required', origin)
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -243,15 +246,15 @@ def update_crew(event: dict, current_user: dict, origin=None):
         crew_data = cur.fetchone()
         
         if not crew_data:
-            return error_response(404, 'Crew not found')
+            return error_response(404, 'Crew not found', origin)
         
         if not can_manage_crew(current_user, crew_data['creator_id'], crew_data['member_ids'] or []):
-            return error_response(403, 'Access denied')
+            return error_response(403, 'Access denied', origin)
         
         if action == 'update_status':
             new_status = body.get('status')
             if new_status not in ['available', 'busy', 'delay', 'need_help']:
-                return error_response(400, 'Invalid status')
+                return error_response(400, 'Invalid status', origin)
             
             cur.execute("SELECT callsign FROM crews WHERE id = %s", (crew_id,))
             crew_info = cur.fetchone()
@@ -265,13 +268,16 @@ def update_crew(event: dict, current_user: dict, origin=None):
             )
             conn.commit()
             
-            request_context = event.get('requestContext', {})
-            client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
-            write_log(current_user['id'], current_user['full_name'], 'CREW', 
-                      f'Экипаж {crew_name} изменил статус на \'{status_labels.get(new_status, new_status)}\'', 
-                      'crew', crew_id, client_ip)
+            try:
+                request_context = event.get('requestContext', {})
+                client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+                write_log(current_user['id'], current_user['full_name'], 'CREW', 
+                          f'Экипаж {crew_name} изменил статус на \'{status_labels.get(new_status, new_status)}\'', 
+                          'crew', crew_id, client_ip)
+            except Exception as e:
+                print(f"Log error: {e}")
             
-            return success_response({'message': 'Status updated successfully'})
+            return success_response({'message': 'Status updated successfully'}, origin)
         
         elif action == 'update_location':
             new_location = sanitize_string(body.get('location', '').strip(), 200)
@@ -280,10 +286,10 @@ def update_crew(event: dict, current_user: dict, origin=None):
                 (new_location, crew_id)
             )
             conn.commit()
-            return success_response({'message': 'Location updated successfully'})
+            return success_response({'message': 'Location updated successfully'}, origin)
         
         else:
-            return error_response(400, 'Invalid action')
+            return error_response(400, 'Invalid action', origin)
     
     finally:
         cur.close()
@@ -295,7 +301,7 @@ def delete_crew(event: dict, current_user: dict, origin=None):
     crew_id = params.get('crew_id')
     
     if not crew_id:
-        return error_response(400, 'crew_id is required')
+        return error_response(400, 'crew_id is required', origin)
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -312,10 +318,10 @@ def delete_crew(event: dict, current_user: dict, origin=None):
         crew_data = cur.fetchone()
         
         if not crew_data:
-            return error_response(404, 'Crew not found')
+            return error_response(404, 'Crew not found', origin)
         
         if not can_manage_crew(current_user, crew_data['creator_id'], crew_data['member_ids'] or []):
-            return error_response(403, 'Access denied')
+            return error_response(403, 'Access denied', origin)
         
         cur.execute("SELECT callsign FROM crews WHERE id = %s", (crew_id,))
         crew_info = cur.fetchone()
@@ -325,12 +331,15 @@ def delete_crew(event: dict, current_user: dict, origin=None):
         cur.execute("DELETE FROM crews WHERE id = %s", (crew_id,))
         conn.commit()
         
-        request_context = event.get('requestContext', {})
-        client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
-        write_log(current_user['id'], current_user['full_name'], 'CREW', 
-                  f'Удалён экипаж {crew_name}', 'crew', int(crew_id), client_ip)
+        try:
+            request_context = event.get('requestContext', {})
+            client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+            write_log(current_user['id'], current_user['full_name'], 'CREW', 
+                      f'Удалён экипаж {crew_name}', 'crew', int(crew_id), client_ip)
+        except Exception as e:
+            print(f"Log error: {e}")
         
-        return success_response({'message': 'Crew deleted successfully'})
+        return success_response({'message': 'Crew deleted successfully'}, origin)
     finally:
         cur.close()
         conn.close()
