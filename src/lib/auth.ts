@@ -1,5 +1,3 @@
-import { logsApi } from './logs-api';
-
 const AUTH_API_URL = 'https://functions.poehali.dev/7f5283a8-d73f-4630-82d9-49a08c177e47';
 
 export interface User {
@@ -67,15 +65,6 @@ export const auth = {
     const result = await response.json();
     localStorage.setItem('user', JSON.stringify(result.user));
     
-    try {
-      await logsApi.createLog({
-        action_type: 'AUTH',
-        action_description: `Вход в систему: ${result.user.full_name}`,
-      });
-    } catch (e) {
-      console.error('Failed to log login:', e);
-    }
-    
     return result;
   },
 
@@ -110,19 +99,6 @@ export const auth = {
   },
 
   async logout() {
-    const user = this.getStoredUser();
-    
-    try {
-      if (user) {
-        await logsApi.createLog({
-          action_type: 'AUTH',
-          action_description: `Выход из системы: ${user.full_name}`,
-        });
-      }
-    } catch (e) {
-      console.error('Failed to log logout:', e);
-    }
-    
     localStorage.removeItem('user');
     document.cookie = 'auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/';
   },
@@ -169,15 +145,6 @@ export const auth = {
 
     const result = await response.json();
     localStorage.setItem('user', JSON.stringify(result.user));
-    
-    try {
-      await logsApi.createLog({
-        action_type: 'PROFILE',
-        action_description: `Обновление профиля: ${result.user.full_name}`,
-      });
-    } catch (e) {
-      console.error('Failed to log profile update:', e);
-    }
     
     return result;
   },

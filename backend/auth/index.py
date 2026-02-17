@@ -42,7 +42,7 @@ def handler(event: dict, context) -> dict:
         client_ip = identity.get('sourceIp', '0.0.0.0')
         
         if action == 'register':
-            return handle_register(body, origin)
+            return handle_register(body, client_ip, origin)
         elif action == 'login':
             return handle_login(body, client_ip, origin)
         elif action == 'verify':
@@ -76,6 +76,24 @@ def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
     return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
 
+def write_log(user_id, user_name, action_type, action_description, target_type=None, target_id=None, ip_address='0.0.0.0'):
+    """Записать лог активности в БД"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO t_p77465986_police_portal_creati.activity_logs 
+               (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"ERROR write_log: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
 def hash_password(password: str) -> str:
     """Хеширование пароля с использованием bcrypt"""
     password_bytes = password.encode('utf-8')
@@ -108,7 +126,7 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
-def handle_register(body: dict, origin=None) -> dict:
+def handle_register(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
     """Регистрация нового пользователя"""
     try:
         email = sanitize_email(body.get('email', ''))
@@ -172,6 +190,9 @@ def handle_register(body: dict, origin=None) -> dict:
         
         response_headers = get_security_headers(origin)
         response_headers['X-Set-Cookie'] = cookie_value
+        
+        write_log(user['id'], full_name, 'AUTH', 
+                  f'Зарегистрирован новый аккаунт: {full_name} ({email})', 'user', user['id'], client_ip)
         
         return {
             'statusCode': 201,
@@ -282,6 +303,9 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
         cookie_value = f"auth_token={token}; HttpOnly; Secure; SameSite=None; Max-Age=2592000; Path=/; Domain=.poehali.dev"
         headers = get_security_headers(origin)
         headers['X-Set-Cookie'] = cookie_value
+        
+        write_log(user['id'], user['full_name'], 'AUTH', 
+                  f'Вход в систему: {user["full_name"]}', 'user', user['id'], client_ip)
         
         return {
             'statusCode': 200,
@@ -438,6 +462,13 @@ def handle_update_profile(body: dict, token: str, origin=None) -> dict:
         cur.execute(update_query, params)
         updated_user = cur.fetchone()
         conn.commit()
+        
+        changed = []
+        if full_name: changed.append('имя')
+        if new_password: changed.append('пароль')
+        write_log(user_id, updated_user['full_name'], 'PROFILE', 
+                  f'Обновление профиля: {updated_user["full_name"]} ({", ".join(changed)})', 
+                  'user', user_id)
         
         return {
             'statusCode': 200,

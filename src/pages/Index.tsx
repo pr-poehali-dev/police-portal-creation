@@ -17,7 +17,6 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 import { crewsApi, Crew as ApiCrew } from "@/lib/crews-api";
 import { boloApi, Bolo } from "@/lib/bolo-api";
 import { notificationsApi, Notification } from "@/lib/notifications-api";
-import { logsApi } from "@/lib/logs-api";
 
 type CrewStatus = "available" | "busy" | "delay" | "need_help";
 
@@ -139,18 +138,7 @@ const Index = () => {
 
   const handleCreateBolo = async () => {
     try {
-      const bolo = await boloApi.create(boloForm);
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'BOLO',
-          action_description: `Создана ориентировка: ${boloForm.mainInfo}`,
-          target_type: 'bolo',
-          target_id: bolo.id
-        });
-      } catch (e) {
-        console.error('Failed to log BOLO creation:', e);
-      }
+      await boloApi.create(boloForm);
       
       toast.success('Ориентировка создана');
       setShowBoloDialog(false);
@@ -168,17 +156,6 @@ const Index = () => {
       if (!editingBolo) return;
       await boloApi.update(editingBolo.id, boloForm);
       
-      try {
-        await logsApi.createLog({
-          action_type: 'BOLO',
-          action_description: `Обновлена ориентировка: ${boloForm.mainInfo}`,
-          target_type: 'bolo',
-          target_id: editingBolo.id
-        });
-      } catch (e) {
-        console.error('Failed to log BOLO update:', e);
-      }
-      
       toast.success('Ориентировка обновлена');
       setShowBoloDialog(false);
       setEditingBolo(null);
@@ -193,19 +170,7 @@ const Index = () => {
 
   const handleDeleteBolo = async (id: number) => {
     try {
-      const bolo = bolos.find(b => b.id === id);
       await boloApi.delete(id);
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'BOLO',
-          action_description: `Удалена ориентировка: ${bolo?.main_info || 'Unknown'}`,
-          target_type: 'bolo',
-          target_id: id
-        });
-      } catch (e) {
-        console.error('Failed to log BOLO deletion:', e);
-      }
       
       toast.success('Ориентировка удалена');
       loadBolos();
@@ -255,17 +220,6 @@ const Index = () => {
       
       await addNotification(`Экипаж ${createForm.callsign} создан`, 'success');
       
-      try {
-        await logsApi.createLog({
-          action_type: 'CREW',
-          action_description: `Создан экипаж ${createForm.callsign}`,
-          target_type: 'crew',
-          target_id: crew.id
-        });
-      } catch (e) {
-        console.error('Failed to log crew creation:', e);
-      }
-      
       toast.success("Экипаж успешно создан", {
         description: `Позывной: ${createForm.callsign}`
       });
@@ -288,17 +242,6 @@ const Index = () => {
       const notifMessage = `Экипаж ${crew?.callsign} изменил статус на '${statusConfig[newStatus].label}'`;
       
       addNotification(notifMessage, newStatus === "need_help" ? "error" : newStatus === "delay" ? "warning" : "info");
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'CREW',
-          action_description: `Экипаж ${crew?.callsign} изменил статус на '${statusConfig[newStatus].label}'`,
-          target_type: 'crew',
-          target_id: crewId
-        });
-      } catch (e) {
-        console.error('Failed to log status change:', e);
-      }
       
       toast.info("Статус обновлен", {
         description: `Экипаж ${crew?.callsign} → ${statusConfig[newStatus].label}`
@@ -328,17 +271,6 @@ const Index = () => {
         type: 'warning'
       };
       setNotifications(prev => [deleteNotification, ...prev]);
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'CREW',
-          action_description: `Удалён экипаж ${crewName}`,
-          target_type: 'crew',
-          target_id: crewId
-        });
-      } catch (e) {
-        console.error('Failed to log crew deletion:', e);
-      }
       
       toast.success('Экипаж удалён');
       loadCrews();

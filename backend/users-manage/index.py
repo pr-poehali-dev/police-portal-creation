@@ -187,16 +187,36 @@ def update_user(event: dict, current_user: dict, origin=None):
     
     try:
         if action == 'activate':
+            cur.execute("SELECT full_name FROM users WHERE id = %s", (user_id,))
+            target = cur.fetchone()
+            target_name = target['full_name'] if target else 'Unknown'
+            
             cur.execute("UPDATE users SET is_active = true WHERE id = %s", (user_id,))
             conn.commit()
+            
+            request_context = event.get('requestContext', {})
+            client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+            write_log(current_user['id'], current_user['full_name'], 'USER', 
+                      f'Подтверждён пользователь {target_name}', 'user', user_id, client_ip)
+            
             return success_response({'message': 'User activated successfully'}, origin)
         
         elif action == 'deactivate':
             if current_user['id'] == user_id:
                 return error_response(403, 'You cannot deactivate yourself', origin)
             
+            cur.execute("SELECT full_name FROM users WHERE id = %s", (user_id,))
+            target = cur.fetchone()
+            target_name = target['full_name'] if target else 'Unknown'
+            
             cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
             conn.commit()
+            
+            request_context = event.get('requestContext', {})
+            client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+            write_log(current_user['id'], current_user['full_name'], 'USER', 
+                      f'Заблокирован пользователь {target_name}', 'user', user_id, client_ip)
+            
             return success_response({'message': 'User deactivated successfully'}, origin)
         
         elif action == 'update':
@@ -254,11 +274,29 @@ def update_user(event: dict, current_user: dict, origin=None):
                 return error_response(400, str(e), origin)
             
             if updates:
+                cur.execute("SELECT full_name FROM users WHERE id = %s", (user_id,))
+                target = cur.fetchone()
+                target_name = target['full_name'] if target else 'Unknown'
+                
                 updates.append("updated_at = NOW()")
                 params.append(user_id)
                 query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
                 cur.execute(query, params)
                 conn.commit()
+                
+                changed_fields = []
+                if 'full_name' in body: changed_fields.append('имя')
+                if 'role' in body: changed_fields.append(f'роль → {body["role"]}')
+                if 'email' in body: changed_fields.append('email')
+                if 'new_user_id' in body: changed_fields.append('ID')
+                if 'password' in body: changed_fields.append('пароль')
+                
+                request_context = event.get('requestContext', {})
+                client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+                write_log(current_user['id'], current_user['full_name'], 'USER', 
+                          f'Обновлены данные пользователя {target_name} ({", ".join(changed_fields)})', 
+                          'user', user_id, client_ip)
+                
                 return success_response({'message': 'User updated successfully'}, origin)
             else:
                 return error_response(400, 'No fields to update', origin)
@@ -296,9 +334,18 @@ def delete_user(event: dict, current_user: dict, origin=None):
     cur = conn.cursor()
     
     try:
+        cur.execute("SELECT full_name FROM users WHERE id = %s", (user_id,))
+        target = cur.fetchone()
+        target_name = target['full_name'] if target else 'Unknown'
+        
         cur.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
         cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
+        
+        request_context = event.get('requestContext', {})
+        client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+        write_log(current_user['id'], current_user['full_name'], 'USER', 
+                  f'Удалён аккаунт пользователя {target_name}', 'user', user_id, client_ip)
         
         return success_response({'message': 'User deleted successfully'}, origin)
     except Exception as e:
@@ -326,8 +373,46 @@ def success_response(data: dict, origin=None):
         'isBase64Encoded': False
     }
 
+def write_log(user_id, user_name, action_type, action_description, target_type=None, target_id=None, ip_address='0.0.0.0'):
+    """Записать лог активности в БД"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO t_p77465986_police_portal_creati.activity_logs 
+               (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"ERROR write_log: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
+def cleanup_old_logs():
+    """Удалить логи старше 72 часов"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "DELETE FROM t_p77465986_police_portal_creati.activity_logs WHERE created_at < NOW() - INTERVAL '72 hours'"
+        )
+        deleted = cur.rowcount
+        conn.commit()
+        if deleted > 0:
+            print(f"Cleanup: deleted {deleted} old logs")
+    except Exception as e:
+        print(f"ERROR cleanup_old_logs: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
 def get_logs(event: dict, current_user: dict, origin=None):
     """Получить логи активности с фильтрацией и поиском"""
+    cleanup_old_logs()
+    
     params = event.get('queryStringParameters') or {}
     search = params.get('search', '').strip()
     action_type = params.get('action_type', '').strip()
@@ -343,7 +428,7 @@ def get_logs(event: dict, current_user: dict, origin=None):
             SELECT id, user_id, user_name, action_type, action_description, 
                    target_type, target_id, ip_address, created_at
             FROM t_p77465986_police_portal_creati.activity_logs
-            WHERE created_at > NOW() - INTERVAL '72 hours'
+            WHERE 1=1
         """
         query_params = []
         
@@ -373,7 +458,6 @@ def get_logs(event: dict, current_user: dict, origin=None):
         cur.execute("""
             SELECT DISTINCT action_type 
             FROM t_p77465986_police_portal_creati.activity_logs
-            WHERE created_at > NOW() - INTERVAL '72 hours'
             ORDER BY action_type
         """)
         action_types = [row['action_type'] for row in cur.fetchall()]

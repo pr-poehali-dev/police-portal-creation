@@ -94,17 +94,6 @@ export function SettingsPanel() {
         await usersApi.updateUser(activatingUser.id, { role: activationRole });
       }
       
-      try {
-        await logsApi.createLog({
-          action_type: 'USER',
-          action_description: `Активирован пользователь ${activatingUser.full_name} с ролью ${getRoleName(activationRole)}`,
-          target_type: 'user',
-          target_id: activatingUser.id
-        });
-      } catch (e) {
-        console.error('Failed to log user activation:', e);
-      }
-      
       toast.success('Пользователь активирован', {
         description: `Роль: ${getRoleName(activationRole)}`
       });
@@ -139,19 +128,7 @@ export function SettingsPanel() {
 
   const handleDeactivate = async (userId: number) => {
     try {
-      const user = users.find(u => u.id === userId);
       await usersApi.deactivateUser(userId);
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'USER',
-          action_description: `Заблокирован пользователь ${user?.full_name || 'Unknown'}`,
-          target_type: 'user',
-          target_id: userId
-        });
-      } catch (e) {
-        console.error('Failed to log user deactivation:', e);
-      }
       
       toast.success('Пользователь заблокирован');
       loadUsers();
@@ -169,17 +146,6 @@ export function SettingsPanel() {
     
     try {
       await usersApi.deleteUser(deletingUser.id);
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'USER',
-          action_description: `Удалён пользователь ${deletingUser.full_name}`,
-          target_type: 'user',
-          target_id: deletingUser.id
-        });
-      } catch (e) {
-        console.error('Failed to log user deletion:', e);
-      }
       
       toast.success('Пользователь удалён');
       setDeletingUser(null);
@@ -231,17 +197,6 @@ export function SettingsPanel() {
       }
       
       await usersApi.updateUser(editingUser.id, updateData);
-      
-      try {
-        await logsApi.createLog({
-          action_type: 'USER',
-          action_description: `Обновлены данные пользователя ${editForm.full_name}`,
-          target_type: 'user',
-          target_id: editingUser.id
-        });
-      } catch (e) {
-        console.error('Failed to log user update:', e);
-      }
       
       toast.success('Данные обновлены');
       setEditingUser(null);

@@ -28,6 +28,23 @@ def extract_token_from_cookie(cookies: str) -> str:
             return cookie.split('=', 1)[1]
     return ''
 
+def write_log(dsn, user_id, user_name, action_type, action_description, target_type=None, target_id=None, ip_address='0.0.0.0'):
+    """Записать лог активности в БД"""
+    try:
+        conn = psycopg2.connect(dsn)
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO t_p77465986_police_portal_creati.activity_logs 
+               (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"ERROR write_log: {str(e)}")
+
 def handler(event: dict, context) -> dict:
     '''API для управления ориентировками BOLO'''
     
@@ -71,7 +88,7 @@ def handler(event: dict, context) -> dict:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         
         cursor.execute(
-            """SELECT u.id, u.role FROM users u
+            """SELECT u.id, u.role, u.full_name FROM users u
                JOIN sessions s ON u.id = s.user_id
                WHERE s.token_hash = %s AND s.expires_at > NOW()""",
             (token_hash,)
@@ -88,7 +105,10 @@ def handler(event: dict, context) -> dict:
                 'isBase64Encoded': False
             }
         
-        user_id, role = user_data
+        user_id, role, user_full_name = user_data
+        
+        request_context = event.get('requestContext', {})
+        client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
         
         if method == 'GET':
             cursor.execute("""
@@ -163,6 +183,9 @@ def handler(event: dict, context) -> dict:
             cursor.close()
             conn.close()
             
+            write_log(dsn, user_id, user_full_name, 'BOLO', 
+                      f'Создана ориентировка: {main_info[:100]}', 'bolo', new_id, client_ip)
+            
             return {
                 'statusCode': 201,
                 'headers': get_cors_headers(origin),
@@ -231,6 +254,9 @@ def handler(event: dict, context) -> dict:
             cursor.close()
             conn.close()
             
+            write_log(dsn, user_id, user_full_name, 'BOLO', 
+                      f'Обновлена ориентировка: {main_info[:100]}', 'bolo', bolo_id, client_ip)
+            
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -252,6 +278,10 @@ def handler(event: dict, context) -> dict:
                     'isBase64Encoded': False
                 }
             
+            cursor.execute("SELECT main_info FROM bolo WHERE id = %s", (bolo_id,))
+            bolo_info = cursor.fetchone()
+            bolo_main_info = bolo_info[0] if bolo_info else 'Unknown'
+            
             cursor.execute("DELETE FROM bolo WHERE id = %s RETURNING id", (bolo_id,))
             
             if cursor.rowcount == 0:
@@ -267,6 +297,9 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             cursor.close()
             conn.close()
+            
+            write_log(dsn, user_id, user_full_name, 'BOLO', 
+                      f'Удалена ориентировка: {bolo_main_info[:100]}', 'bolo', int(bolo_id), client_ip)
             
             return {
                 'statusCode': 200,

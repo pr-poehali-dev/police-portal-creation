@@ -96,6 +96,24 @@ def verify_token(token: str):
         cur.close()
         conn.close()
 
+def write_log(user_id, user_name, action_type, action_description, target_type=None, target_id=None, ip_address='0.0.0.0'):
+    """Записать лог активности в БД"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO t_p77465986_police_portal_creati.activity_logs 
+               (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (user_id, user_name, action_type, action_description, target_type, target_id, ip_address)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"ERROR write_log: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
 def can_manage_crew(current_user: dict, crew_creator_id: int, crew_members: list) -> bool:
     """Проверка прав на управление экипажем"""
     if current_user['role'] in ['moderator', 'admin', 'manager']:
@@ -191,6 +209,11 @@ def create_crew(event: dict, current_user: dict, origin=None):
         
         conn.commit()
         
+        request_context = event.get('requestContext', {})
+        client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+        write_log(current_user['id'], current_user['full_name'], 'CREW', 
+                  f'Создан экипаж {callsign}', 'crew', crew_id, client_ip)
+        
         return success_response({'message': 'Crew created successfully', 'crew_id': crew_id})
     finally:
         cur.close()
@@ -230,11 +253,24 @@ def update_crew(event: dict, current_user: dict, origin=None):
             if new_status not in ['available', 'busy', 'delay', 'need_help']:
                 return error_response(400, 'Invalid status')
             
+            cur.execute("SELECT callsign FROM crews WHERE id = %s", (crew_id,))
+            crew_info = cur.fetchone()
+            crew_name = crew_info['callsign'] if crew_info else 'Unknown'
+            
+            status_labels = {'available': 'Доступен', 'busy': 'Занят', 'delay': 'Задержка', 'need_help': 'Требуется поддержка'}
+            
             cur.execute(
                 "UPDATE crews SET status = %s, updated_at = NOW() WHERE id = %s",
                 (new_status, crew_id)
             )
             conn.commit()
+            
+            request_context = event.get('requestContext', {})
+            client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+            write_log(current_user['id'], current_user['full_name'], 'CREW', 
+                      f'Экипаж {crew_name} изменил статус на \'{status_labels.get(new_status, new_status)}\'', 
+                      'crew', crew_id, client_ip)
+            
             return success_response({'message': 'Status updated successfully'})
         
         elif action == 'update_location':
@@ -281,9 +317,18 @@ def delete_crew(event: dict, current_user: dict, origin=None):
         if not can_manage_crew(current_user, crew_data['creator_id'], crew_data['member_ids'] or []):
             return error_response(403, 'Access denied')
         
+        cur.execute("SELECT callsign FROM crews WHERE id = %s", (crew_id,))
+        crew_info = cur.fetchone()
+        crew_name = crew_info['callsign'] if crew_info else 'Unknown'
+        
         cur.execute("DELETE FROM crew_members WHERE crew_id = %s", (crew_id,))
         cur.execute("DELETE FROM crews WHERE id = %s", (crew_id,))
         conn.commit()
+        
+        request_context = event.get('requestContext', {})
+        client_ip = request_context.get('identity', {}).get('sourceIp', '0.0.0.0')
+        write_log(current_user['id'], current_user['full_name'], 'CREW', 
+                  f'Удалён экипаж {crew_name}', 'crew', int(crew_id), client_ip)
         
         return success_response({'message': 'Crew deleted successfully'})
     finally:
