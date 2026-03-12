@@ -909,6 +909,9 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
                       defaultValue={user?.full_name}
                       placeholder="Иван Иванов"
                     />
+                    <div className="rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+                      Будьте внимательны! Изменить имя можно только один раз в 6 часов.
+                    </div>
                   </div>
                   <Button 
                     onClick={async () => {
