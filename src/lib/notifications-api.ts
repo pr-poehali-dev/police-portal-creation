@@ -15,8 +15,9 @@ export interface Notification {
 export const notificationsApi = {
   async getAll(): Promise<Notification[]> {
     const response = await fetch(NOTIFICATIONS_API_URL, {
-      method: 'GET',
-      headers: { ...auth.getAuthHeader() },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
+      body: JSON.stringify({ action: 'get_all' }),
     });
 
     if (!response.ok) throw new Error('Failed to fetch notifications');

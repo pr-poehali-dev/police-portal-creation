@@ -236,40 +236,38 @@ export function SettingsPanel() {
           ) : (
             activeUsers.map(user => (
               <Card key={user.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2">
-                        {user.full_name}
-                        <Badge variant="outline" className="font-mono">ID: {user.user_id}</Badge>
-                        <Badge variant={
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-semibold text-base truncate max-w-[180px] sm:max-w-none">{user.full_name}</span>
+                        <Badge variant="outline" className="font-mono text-xs shrink-0">ID: {user.user_id}</Badge>
+                        <Badge className="text-xs shrink-0" variant={
                           user.role === 'admin' ? 'destructive' :
                           user.role === 'manager' ? 'default' :
                           user.role === 'moderator' ? 'secondary' : 'outline'
                         }>
                           {getRoleName(user.role)}
                         </Badge>
-                      </CardTitle>
-                      <CardDescription>{user.email}</CardDescription>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
-                    <div className="flex gap-2">
-                      {(currentUserRole === 'admin' || currentUserRole === 'manager') && currentUserId !== user.id && (
-                        <>
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(user)}>
-                            <Icon name="Edit" size={16} className="mr-2" />
-                            Изменить
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDeactivate(user.id)}>
-                            <Icon name="Ban" size={16} className="mr-2" />
-                            Заблокировать
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => setDeletingUser(user)}>
-                            <Icon name="Trash2" size={16} className="mr-2" />
-                            Удалить
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    {(currentUserRole === 'admin' || currentUserRole === 'manager') && currentUserId !== user.id && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleEdit(user)}>
+                          <Icon name="Edit" size={14} className="mr-1" />
+                          Изменить
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleDeactivate(user.id)}>
+                          <Icon name="Ban" size={14} className="mr-1" />
+                          Блок
+                        </Button>
+                        <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => setDeletingUser(user)}>
+                          <Icon name="Trash2" size={14} className="mr-1" />
+                          Удалить
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
               </Card>
@@ -289,29 +287,27 @@ export function SettingsPanel() {
           ) : (
             pendingUsers.map(user => (
               <Card key={user.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2">
-                        {user.full_name}
-                        <Badge variant="outline" className="font-mono">ID: {user.user_id}</Badge>
-                      </CardTitle>
-                      <CardDescription>{user.email}</CardDescription>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-semibold text-base truncate max-w-[200px] sm:max-w-none">{user.full_name}</span>
+                        <Badge variant="outline" className="font-mono text-xs shrink-0">ID: {user.user_id}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
-                    <div className="flex gap-2">
-                      {(currentUserRole === 'admin' || currentUserRole === 'manager') && (
-                        <>
-                          <Button onClick={() => setActivatingUser(user)}>
-                            <Icon name="UserCheck" size={16} className="mr-2" />
-                            Активировать
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => setDeletingUser(user)}>
-                            <Icon name="Trash2" size={16} className="mr-2" />
-                            Удалить
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    {(currentUserRole === 'admin' || currentUserRole === 'manager') && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" className="h-8 text-xs" onClick={() => setActivatingUser(user)}>
+                          <Icon name="UserCheck" size={14} className="mr-1" />
+                          Активировать
+                        </Button>
+                        <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => setDeletingUser(user)}>
+                          <Icon name="Trash2" size={14} className="mr-1" />
+                          Удалить
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
               </Card>
@@ -410,7 +406,7 @@ export function SettingsPanel() {
                   <p>Логов не найдено</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                <div className="space-y-2 max-h-[50vh] sm:max-h-[600px] overflow-y-auto">
                   {logs.map(log => (
                     <div key={log.id} className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
                       <div className="flex-1 space-y-1">

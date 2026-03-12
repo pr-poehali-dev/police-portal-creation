@@ -1263,9 +1263,7 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
                             const crewId = parseInt(input.dataset.crewId || '0');
                             const location = input.dataset.location || input.value;
                             try {
-                              const token = auth.getToken();
-                              if (!token) return;
-                              await crewsApi.updateCrewLocation(token, crewId, location);
+                              await crewsApi.updateCrewLocation(crewId, location);
                               toast.success('Местоположение обновлено');
                               loadCrews();
                             } catch (error) {

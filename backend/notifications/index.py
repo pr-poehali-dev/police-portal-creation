@@ -42,8 +42,15 @@ def handler(event: dict, context) -> dict:
             'isBase64Encoded': False
         }
     
-    cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
-    token = extract_token_from_cookie(cookies)
+    auth_header = headers.get('Authorization', '') or headers.get('authorization', '') or \
+                  headers.get('X-Authorization', '') or headers.get('x-authorization', '')
+    token = ''
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+    
+    if not token:
+        cookies = headers.get('Cookie', '') or headers.get('cookie', '') or headers.get('X-Cookie', '') or headers.get('x-cookie', '')
+        token = extract_token_from_cookie(cookies)
     
     if not token:
         return error_response(401, 'Authentication required', origin)
@@ -56,6 +63,10 @@ def handler(event: dict, context) -> dict:
         if method == 'GET':
             return get_notifications(current_user, origin)
         elif method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            action = body.get('action', '')
+            if action == 'get_all':
+                return get_notifications(current_user, origin)
             return create_notification(event, current_user, origin)
         elif method == 'PUT':
             return mark_as_read(event, current_user, origin)
