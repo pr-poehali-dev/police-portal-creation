@@ -352,9 +352,16 @@ def delete_user(event: dict, current_user: dict, origin=None):
     cur = conn.cursor()
     
     try:
-        cur.execute("SELECT full_name FROM users WHERE id = %s", (user_id,))
+        cur.execute("SELECT full_name, role FROM users WHERE id = %s", (user_id,))
         target = cur.fetchone()
-        target_name = target['full_name'] if target else 'Unknown'
+        if not target:
+            return error_response(404, 'User not found', origin)
+        
+        target_name = target['full_name']
+        target_role = target['role']
+        
+        if current_user['role'] == 'admin' and target_role == 'manager':
+            return error_response(403, 'Administrators cannot delete manager accounts', origin)
         
         cur.execute("DELETE FROM sessions WHERE user_id = %s", (user_id,))
         cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
