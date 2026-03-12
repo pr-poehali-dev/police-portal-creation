@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "GET health check — DB connection",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": "db_ok",
+      "bodyMatcher": "contains"
+    }
+  ]
+}

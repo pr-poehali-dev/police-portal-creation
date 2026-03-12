@@ -1,0 +1,601 @@
+"""
+Интеграция с МОБИЛОН ВАТС: история звонков по дням, запись разговоров.
+Вебхуки от Мобилона сохраняются в таблицу calls.
+API: https://connect.mobilon.ru/api/call/journal?token={token}&date={date}&format=xml
+"""
+import json
+import os
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import psycopg2
+
+CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Auth-Token, X-Session-Id',
+    'Access-Control-Max-Age': '86400',
+}
+
+TIMEOUT = 8
+SCHEMA = 't_p82967824_project_development_'
+
+
+def get_db():
+    return psycopg2.connect(os.environ['DATABASE_URL'])
+
+
+def safe_urlencode(params):
+    parts = []
+    for k, v in params.items():
+        parts.append(f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v), safe=':/@')}")
+    return '&'.join(parts)
+
+
+def get_mobilon_base():
+    domain = os.environ.get('MOBILON_DOMAIN', 'connect.mobilon.ru').strip().rstrip('/')
+    return f'https://{domain}/api/call'
+
+
+def resp(status, body):
+    return {
+        'statusCode': status,
+        'headers': {**CORS_HEADERS, 'Content-Type': 'application/json'},
+        'body': json.dumps(body, default=str, ensure_ascii=False),
+    }
+
+
+def mobilon_request(path, params):
+    base = get_mobilon_base()
+    qs = safe_urlencode(params)
+    url = f'{base}/{path}?{qs}'
+    req = urllib.request.Request(url, headers={'Accept': 'application/json, text/xml'})
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        raw = r.read().decode('utf-8')
+    return raw
+
+
+def parse_xml_calls(xml_str):
+    root = ET.fromstring(xml_str)
+    calls = []
+    elements = root.findall('call') if root.tag == 'calls' else [root]
+    for c in elements:
+        calls.append({tag: (c.find(tag).text or '') for tag in [
+            'callid', 'status', 'record_url', 'has_record',
+            'duration', 'from', 'direction', 'to', 'time',
+            'operator_id', 'subscriber_id'
+        ] if c.find(tag) is not None})
+    return calls
+
+
+def normalize_direction(raw_direction, status, duration):
+    d = str(raw_direction).upper()
+    s = str(status).upper()
+    dur = int(duration) if str(duration).isdigit() else 0
+    if s in ('NOANSWER', 'NO ANSWER', 'BUSY', 'FAILED', 'CANCEL') or (dur == 0 and s != 'ANSWERED'):
+        return 'missed'
+    if d in ('OUTGOING', 'EXTERNAL'):
+        return 'out'
+    return 'in'
+
+
+def format_call(c, token):
+    direction = normalize_direction(
+        c.get('direction', ''),
+        c.get('status', ''),
+        c.get('duration', 0),
+    )
+    duration = int(c.get('duration', 0)) if str(c.get('duration', 0)).isdigit() else 0
+    phone = c.get('to', '') if direction == 'out' else c.get('from', '')
+
+    record_url = None
+    if c.get('has_record') == '1' and c.get('callid'):
+        raw_record = c.get('record_url', '')
+        domain = os.environ.get('MOBILON_DOMAIN', 'connect.mobilon.ru').strip().rstrip('/')
+        if raw_record and raw_record.startswith('/'):
+            record_url = f"https://{domain}{raw_record}"
+        else:
+            record_url = f"https://{domain}/api/call/record?token={token}&callid={c['callid']}"
+
+    return {
+        'id': c.get('callid', ''),
+        'phone': phone,
+        'src': c.get('from', ''),
+        'dst': c.get('to', ''),
+        'direction': direction,
+        'duration': duration,
+        'started_at': c.get('time', ''),
+        'status': c.get('status', ''),
+        'record_url': record_url,
+        'has_record': c.get('has_record') == '1',
+        'operator_id': c.get('operator_id', ''),
+    }
+
+
+def get_journal_for_date(token, date_str):
+    params = {'token': token, 'date': date_str, 'format': 'xml'}
+    raw = mobilon_request('journal', params)
+    return parse_xml_calls(raw)
+
+
+def save_webhook_to_db(data: dict):
+    """Сохраняет или обновляет вебхук-событие в таблице calls."""
+    mobilon_id = data.get('baseid') or data.get('callid') or data.get('uuid')
+    if not mobilon_id:
+        return
+
+    phone_from = data.get('from', '')
+    phone_to = data.get('to', '')
+    direction_raw = data.get('direction', 'incoming').lower()
+    state = data.get('state', '')
+    duration_raw = data.get('duration', '0')
+    duration = int(duration_raw) if str(duration_raw).isdigit() else 0
+    started_at = data.get('time')
+    started_at = int(started_at) if started_at and str(started_at).isdigit() else None
+    uuid = data.get('uuid', '')
+    subid = data.get('subid', '')
+    userkey = data.get('userkey', '')
+
+    if direction_raw in ('outgoing', 'external'):
+        direction = 'out'
+        phone = phone_to
+    elif state in ('HANGUP', 'hangup') and duration == 0:
+        direction = 'missed'
+        phone = phone_from
+    else:
+        direction = 'in'
+        phone = phone_from
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.calls
+                (mobilon_id, phone, src, dst, direction, duration, started_at, state, uuid, subid, userkey, raw)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (mobilon_id) DO UPDATE SET
+                state = EXCLUDED.state,
+                duration = EXCLUDED.duration,
+                raw = EXCLUDED.raw
+        """, (
+            mobilon_id, phone, phone_from, phone_to,
+            direction, duration, started_at,
+            state, uuid, subid, userkey,
+            json.dumps(data, ensure_ascii=False)
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def normalize_phone_digits(phone):
+    import re
+    digits = re.sub(r'\D', '', str(phone))
+    if len(digits) == 11 and digits[0] in ('7', '8'):
+        return '7' + digits[1:]
+    if len(digits) == 10:
+        return '7' + digits
+    return digits
+
+
+def db_calls_to_list(rows):
+    result = []
+    for r in rows:
+        raw = r[10] or {}
+        record_url = raw.get('recordUrl') or raw.get('record_url') or None
+        has_record = bool(record_url)
+        result.append({
+            'id': r[1] or str(r[0]),
+            'phone': r[2] or '',
+            'src': r[3] or '',
+            'dst': r[4] or '',
+            'direction': r[5] or 'in',
+            'duration': r[6] or 0,
+            'started_at': str(r[7]) if r[7] else '',
+            'state': r[8] or '',
+            'uuid': r[9] or '',
+            'source': 'webhook',
+            'has_record': has_record,
+            'record_url': record_url,
+            'status': r[8] or '',
+            'operator_id': '',
+            'client_name': r[11] or None,
+            'transcript': r[12] or None,
+            'transcript_status': r[13] or 'none',
+        })
+    return result
+
+
+def handle_transcribe(params: dict) -> dict:
+    """Скачивает запись звонка и расшифровывает через OpenAI Whisper (через прокси laozhang)."""
+    import io
+    from openai import OpenAI
+
+    call_id = params.get('call_id', '').strip()
+    if not call_id:
+        return resp(400, {'error': 'call_id is required'})
+
+    openai_key = os.environ.get('OPENAI_API_KEY', '')
+    if not openai_key:
+        return resp(500, {'error': 'OPENAI_API_KEY not configured'})
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT id, mobilon_id, raw, transcript, transcript_status FROM {SCHEMA}.calls WHERE mobilon_id = '{call_id}' LIMIT 1"
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return resp(404, {'error': 'call not found'})
+
+    db_id, mobilon_id, raw, transcript, transcript_status = row
+
+    if transcript and transcript_status == 'done':
+        return resp(200, {'transcript': transcript, 'cached': True})
+
+    record_url = (raw or {}).get('recordUrl') or (raw or {}).get('record_url')
+    if not record_url:
+        return resp(400, {'error': 'no_record', 'message': 'Запись разговора недоступна'})
+
+    try:
+        req = urllib.request.Request(record_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            audio_data = r.read()
+    except Exception as e:
+        return resp(502, {'error': 'download_failed', 'message': str(e)})
+
+    ai_client = OpenAI(api_key=openai_key, base_url='https://api.laozhang.ai/v1')
+    try:
+        result = ai_client.audio.transcriptions.create(
+            model='whisper-1',
+            file=('call.mp3', io.BytesIO(audio_data), 'audio/mpeg'),
+            language='ru',
+        )
+        text = result.text.strip()
+    except Exception as e:
+        return resp(502, {'error': 'whisper_failed', 'message': str(e)})
+
+    if not text:
+        return resp(200, {'transcript': '', 'error': 'empty_transcript'})
+
+    conn2 = get_db()
+    try:
+        cur2 = conn2.cursor()
+        cur2.execute(
+            f"UPDATE {SCHEMA}.calls SET transcript = %s, transcript_status = 'done' WHERE id = %s",
+            (text, db_id)
+        )
+        conn2.commit()
+    finally:
+        conn2.close()
+
+    return resp(200, {'transcript': text, 'cached': False})
+
+
+def handler(event: dict, context) -> dict:
+    """Обработчик звонков МОБИЛОН ВАТС."""
+    if event.get('httpMethod') == 'OPTIONS':
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': ''}
+
+    params = event.get('queryStringParameters') or {}
+
+    # ── Вебхук от МОБИЛОН (POST с JSON-телом) ────────────────────────────
+    # Мобилон шлёт: {"from":..., "to":..., "baseid":..., "state":..., "direction":..., ...}
+    body_raw = event.get('body') or ''
+    webhook_data = None
+    if body_raw:
+        try:
+            webhook_data = json.loads(body_raw)
+        except Exception:
+            pass
+
+    # Также проверяем query-параметры (некоторые версии Мобилон шлют через GET)
+    query_is_webhook = (
+        params.get('state') is not None and (
+            params.get('baseid') is not None or
+            params.get('uuid') is not None or
+            params.get('callid') is not None
+        )
+    )
+
+    if webhook_data and ('state' in webhook_data or 'baseid' in webhook_data):
+        print(f"[MOBILON WEBHOOK] {json.dumps(webhook_data, ensure_ascii=False)}")
+        save_webhook_to_db(webhook_data)
+        return {
+            'statusCode': 200,
+            'headers': {**CORS_HEADERS, 'Content-Type': 'text/plain'},
+            'body': 'ok',
+        }
+
+    if query_is_webhook:
+        print(f"[MOBILON WEBHOOK GET] {json.dumps(params, ensure_ascii=False)}")
+        save_webhook_to_db(params)
+        return {
+            'statusCode': 200,
+            'headers': {**CORS_HEADERS, 'Content-Type': 'text/plain'},
+            'body': 'ok',
+        }
+
+    token = os.environ.get('MOBILON_API_TOKEN', '')
+    userkey = os.environ.get('MOBILON_USER_KEY', '')
+
+    action = params.get('action', 'list')
+
+    # ── Список звонков из БД (вебхуки) ───────────────────────────────────
+    if action == 'list_db':
+        date_from = params.get('date_from', '')
+        date_to = params.get('date_to', '')
+        if not date_from:
+            date_from = (datetime.now() - timedelta(days=6)).strftime('%Y-%m-%d')
+        if not date_to:
+            date_to = datetime.now().strftime('%Y-%m-%d')
+
+        ts_from = int(datetime.strptime(date_from, '%Y-%m-%d').timestamp())
+        ts_to = int((datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).timestamp())
+
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(f"""
+                SELECT c.id, c.mobilon_id, c.phone, c.src, c.dst, c.direction, c.duration,
+                       c.started_at, c.state, c.uuid, c.raw,
+                       cl.name AS client_name,
+                       c.transcript, c.transcript_status
+                FROM {SCHEMA}.calls c
+                LEFT JOIN {SCHEMA}.clients cl
+                    ON right(regexp_replace(cl.phone, '[^0-9]', '', 'g'), 10) =
+                       right(regexp_replace(c.phone, '[^0-9]', '', 'g'), 10)
+                WHERE c.started_at >= {ts_from} AND c.started_at < {ts_to}
+                ORDER BY c.started_at DESC
+                LIMIT 500
+            """)
+            rows = cur.fetchall()
+
+            cur.execute(f"""
+                SELECT DISTINCT dst FROM {SCHEMA}.calls
+                WHERE dst IS NOT NULL AND dst != ''
+                ORDER BY dst
+            """)
+            dst_rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        calls = db_calls_to_list(rows)
+        total = len(calls)
+        incoming = sum(1 for c in calls if c['direction'] == 'in')
+        outgoing = sum(1 for c in calls if c['direction'] == 'out')
+        missed = sum(1 for c in calls if c['direction'] == 'missed')
+        dst_numbers = [r[0] for r in dst_rows]
+
+        return resp(200, {
+            'calls': calls,
+            'stats': {'total': total, 'incoming': incoming, 'outgoing': outgoing, 'missed': missed},
+            'date_from': date_from,
+            'date_to': date_to,
+            'source': 'db',
+            'dst_numbers': dst_numbers,
+        })
+
+    if action == 'transcribe':
+        return handle_transcribe(params)
+
+    if not token or not userkey:
+        return resp(200, {
+            'calls': [], 'error': 'not_configured',
+            'stats': {'total': 0, 'incoming': 0, 'outgoing': 0, 'missed': 0}
+        })
+
+    # ── Ping ──────────────────────────────────────────────────────────────
+    if action == 'ping':
+        today = datetime.now().strftime('%Y-%m-%d')
+        token_preview = f"{token[:6]}...{token[-4:]}" if len(token) > 10 else f"[{len(token)} символов]"
+        base = get_mobilon_base()
+        domain = os.environ.get('MOBILON_DOMAIN', 'connect.mobilon.ru').strip().rstrip('/')
+
+        results = []
+
+        call_url = f"{base}/CallToSubscriber"
+        call_params = {'key': userkey, 'outboundNumber': '00000000000'}
+        qs = safe_urlencode(call_params)
+        full_url = f"{call_url}?{qs}"
+        safe_url = full_url.replace(userkey, f"{userkey[:3]}***")
+        try:
+            req = urllib.request.Request(full_url, headers={'Accept': 'application/json'})
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                http_status = r.status
+                raw = r.read().decode('utf-8')
+            is_html = raw.strip().lower().startswith('<!doctype') or raw.strip().lower().startswith('<html')
+            try:
+                parsed = json.loads(raw)
+                result_code = parsed.get('code', '')
+                result_val = parsed.get('result', '')
+                ok_codes = ('0', '1', '3', '4', '5')
+                key_valid = str(result_code) in ok_codes
+            except Exception:
+                parsed = {}
+                result_code = ''
+                result_val = ''
+                key_valid = False
+            results.append({
+                'name': 'CallToSubscriber (key check)',
+                'url': safe_url,
+                'http_status': http_status,
+                'is_json': not is_html,
+                'key_valid': key_valid,
+                'result': result_val,
+                'code': str(result_code),
+                'preview': raw[:300],
+            })
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8') if e.fp else ''
+            results.append({'name': 'CallToSubscriber (key check)', 'url': safe_url,
+                            'http_status': e.code, 'is_json': False, 'key_valid': False,
+                            'error': f"HTTP {e.code}: {e.reason}", 'preview': body[:200]})
+        except Exception as e:
+            results.append({'name': 'CallToSubscriber (key check)', 'url': safe_url,
+                            'http_status': None, 'is_json': False, 'key_valid': False,
+                            'error': str(e), 'preview': ''})
+
+        journal_url = f"{base}/journal"
+        journal_params = {'token': token, 'date': today, 'format': 'xml', 'limit': '1'}
+        qs2 = safe_urlencode(journal_params)
+        full_url2 = f"{journal_url}?{qs2}"
+        safe_url2 = full_url2.replace(token, f"{token[:6]}***")
+        try:
+            req2 = urllib.request.Request(full_url2, headers={'Accept': '*/*'})
+            with urllib.request.urlopen(req2, timeout=TIMEOUT) as r2:
+                http_status2 = r2.status
+                raw2 = r2.read().decode('utf-8')
+            is_html2 = raw2.strip().lower().startswith('<!doctype') or raw2.strip().lower().startswith('<html')
+            is_xml = raw2.strip().startswith('<')
+            try:
+                parsed_calls = parse_xml_calls(raw2)
+                token_valid = True
+                call_count = len(parsed_calls)
+            except Exception:
+                token_valid = not is_html2 and is_xml
+                call_count = 0
+            results.append({
+                'name': 'Journal API (token check)',
+                'url': safe_url2,
+                'http_status': http_status2,
+                'is_xml': is_xml,
+                'token_valid': token_valid,
+                'call_count_today': call_count,
+                'preview': raw2[:300],
+            })
+        except urllib.error.HTTPError as e:
+            body2 = e.read().decode('utf-8') if e.fp else ''
+            results.append({'name': 'Journal API (token check)', 'url': safe_url2,
+                            'http_status': e.code, 'is_xml': False, 'token_valid': False,
+                            'error': f"HTTP {e.code}: {e.reason}", 'preview': body2[:200]})
+        except Exception as e:
+            results.append({'name': 'Journal API (token check)', 'url': safe_url2,
+                            'http_status': None, 'is_xml': False, 'token_valid': False,
+                            'error': str(e), 'preview': ''})
+
+        key_check = next((r for r in results if 'key_valid' in r), {})
+        token_check = next((r for r in results if 'token_valid' in r), {})
+        overall_ok = key_check.get('key_valid', False) or token_check.get('token_valid', False)
+
+        return resp(200, {
+            'ok': overall_ok,
+            'token_preview': token_preview,
+            'date': today,
+            'domain': domain,
+            'base_url': base,
+            'results': results,
+        })
+
+    # ── Raw request ───────────────────────────────────────────────────────
+    if action == 'raw_request':
+        body = json.loads(event.get('body') or '{}')
+        raw_url = body.get('url', '').strip()
+        if not raw_url:
+            return resp(400, {'error': 'url required'})
+        full_url = raw_url.replace('{TOKEN}', token).replace('{KEY}', userkey)
+        domain = os.environ.get('MOBILON_DOMAIN', 'connect.mobilon.ru').strip().rstrip('/')
+        full_url = full_url.replace('{DOMAIN}', domain)
+        safe_url = full_url.replace(token, '{TOKEN}').replace(userkey, '{KEY}')
+        try:
+            req = urllib.request.Request(full_url, headers={'Accept': 'application/json, text/xml, */*'})
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                http_status = r.status
+                raw = r.read().decode('utf-8')
+            try:
+                parsed = json.loads(raw)
+                return resp(200, {'url': safe_url, 'real_url': full_url, 'http_status': http_status, 'format': 'json', 'response': parsed})
+            except Exception:
+                pass
+            try:
+                root = ET.fromstring(raw)
+                def xml_to_dict(el):
+                    d = {}
+                    for child in el:
+                        if len(child):
+                            if child.tag in d:
+                                if not isinstance(d[child.tag], list):
+                                    d[child.tag] = [d[child.tag]]
+                                d[child.tag].append(xml_to_dict(child))
+                            else:
+                                d[child.tag] = xml_to_dict(child)
+                        else:
+                            d[child.tag] = child.text or ''
+                    return d
+                parsed_xml = xml_to_dict(root)
+                return resp(200, {'url': safe_url, 'real_url': full_url, 'http_status': http_status, 'format': 'xml', 'response': parsed_xml, 'raw': raw[:2000]})
+            except Exception:
+                pass
+            return resp(200, {'url': safe_url, 'real_url': full_url, 'http_status': http_status, 'format': 'text', 'response': raw[:3000]})
+        except urllib.error.HTTPError as e:
+            body_err = e.read().decode('utf-8') if e.fp else ''
+            return resp(200, {'url': safe_url, 'real_url': full_url, 'http_status': e.code, 'error': f"HTTP {e.code}: {e.reason}", 'response': body_err[:1000]})
+        except Exception as e:
+            return resp(200, {'url': safe_url, 'error': str(e)})
+
+    # ── Call info by callid ───────────────────────────────────────────────
+    if action == 'info':
+        callid = params.get('callid', '')
+        if not callid:
+            return resp(400, {'error': 'callid required'})
+        try:
+            raw = mobilon_request('info', {'token': token, 'callid': callid, 'format': 'xml'})
+            calls = parse_xml_calls(raw)
+            return resp(200, {'call': format_call(calls[0], token) if calls else None})
+        except Exception as e:
+            return resp(200, {'error': str(e)})
+
+    # ── List calls from Mobilon API ───────────────────────────────────────
+    date_from = params.get('date_from', '')
+    date_to = params.get('date_to', '')
+
+    if not date_from:
+        date_from = (datetime.now() - timedelta(days=6)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = datetime.now().strftime('%Y-%m-%d')
+
+    try:
+        dates = []
+        d = datetime.strptime(date_from, '%Y-%m-%d')
+        d_end = datetime.strptime(date_to, '%Y-%m-%d')
+        while d <= d_end:
+            dates.append(d.strftime('%Y-%m-%d'))
+            d += timedelta(days=1)
+
+        all_raw = []
+        with ThreadPoolExecutor(max_workers=min(len(dates), 7)) as executor:
+            futures = {executor.submit(get_journal_for_date, token, date): date for date in dates}
+            for future in as_completed(futures):
+                try:
+                    all_raw.extend(future.result())
+                except Exception:
+                    pass
+
+        all_raw.sort(key=lambda c: c.get('time', ''), reverse=True)
+
+        calls = [format_call(c, token) for c in all_raw]
+
+        total = len(calls)
+        incoming = sum(1 for c in calls if c['direction'] == 'in')
+        outgoing = sum(1 for c in calls if c['direction'] == 'out')
+        missed = sum(1 for c in calls if c['direction'] == 'missed')
+
+        return resp(200, {
+            'calls': calls,
+            'stats': {'total': total, 'incoming': incoming, 'outgoing': outgoing, 'missed': missed},
+            'date_from': date_from,
+            'date_to': date_to,
+        })
+
+    except Exception as e:
+        return resp(200, {
+            'error': str(e),
+            'calls': [],
+            'stats': {'total': 0, 'incoming': 0, 'outgoing': 0, 'missed': 0},
+        })
