@@ -1103,7 +1103,7 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
                   <Label htmlFor="location">Местоположение</Label>
                   <Input 
                     id="location" 
-                    placeholder="Центральный район, ул. Ленина"
+                    placeholder="Линкольн, 1"
                     value={createForm.location}
                     onChange={(e) => setCreateForm({...createForm, location: e.target.value})}
                   />
