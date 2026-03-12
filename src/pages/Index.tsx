@@ -45,6 +45,7 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
   const [showNotifications, setShowNotifications] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [locationInput, setLocationInput] = useState('');
   const [sortBy, setSortBy] = useState<'time' | 'callsign' | 'status-priority' | 'status-available'>('time');
   const [bolos, setBolos] = useState<Bolo[]>([]);
@@ -940,6 +941,8 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
                       id="current-password" 
                       type="password"
                       placeholder="Введите текущий пароль"
+                      value={passwordForm.current}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -949,31 +952,44 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
                       type="password"
                       placeholder="Минимум 6 символов"
                       minLength={6}
+                      value={passwordForm.newPass}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPass: e.target.value })}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Повторите новый пароль</Label>
+                    <Input 
+                      id="confirm-password" 
+                      type="password"
+                      placeholder="Повторите новый пароль"
+                      value={passwordForm.confirm}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                    />
+                    {passwordForm.confirm && passwordForm.newPass !== passwordForm.confirm && (
+                      <p className="text-sm text-red-500">Пароли не совпадают</p>
+                    )}
                   </div>
                   <Button 
                     onClick={async () => {
-                      const currentInput = document.getElementById('current-password') as HTMLInputElement;
-                      const newInput = document.getElementById('new-password') as HTMLInputElement;
-                      const currentPassword = currentInput.value;
-                      const newPassword = newInput.value;
-                      
-                      if (!currentPassword) {
+                      if (!passwordForm.current) {
                         toast.error('Введите текущий пароль');
                         return;
                       }
-                      if (!newPassword || newPassword.length < 6) {
+                      if (!passwordForm.newPass || passwordForm.newPass.length < 6) {
                         toast.error('Новый пароль должен быть минимум 6 символов');
+                        return;
+                      }
+                      if (passwordForm.newPass !== passwordForm.confirm) {
+                        toast.error('Пароли не совпадают');
                         return;
                       }
                       
                       try {
                         await auth.updateProfile({ 
-                          current_password: currentPassword,
-                          new_password: newPassword 
+                          current_password: passwordForm.current,
+                          new_password: passwordForm.newPass 
                         });
-                        currentInput.value = '';
-                        newInput.value = '';
+                        setPasswordForm({ current: '', newPass: '', confirm: '' });
                         toast.success('Пароль обновлён');
                       } catch (error) {
                         toast.error('Ошибка', {
