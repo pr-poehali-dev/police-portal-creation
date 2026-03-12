@@ -73,22 +73,27 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
   useEffect(() => {
     const checkAuth = async () => {
       const storedUser = auth.getStoredUser();
-      if (storedUser) {
-        const verifiedUser = await auth.verify();
-        if (verifiedUser) {
-          if (!verifiedUser.is_active) {
-            navigate('/pending');
-            return;
-          }
-          setUser(verifiedUser);
-          setIsAuthenticated(true);
-        } else {
-          navigate('/login');
-        }
-      } else {
+      if (!storedUser) {
         navigate('/login');
+        setLoading(false);
+        return;
       }
+      // Сразу показываем пользователя из кэша, не ждём verify
+      if (!storedUser.is_active) {
+        navigate('/pending');
+        return;
+      }
+      setUser(storedUser);
+      setIsAuthenticated(true);
       setLoading(false);
+      // Проверяем сессию в фоне
+      const verifiedUser = await auth.verify();
+      if (!verifiedUser) {
+        auth.logout();
+        navigate('/login');
+      } else {
+        setUser(verifiedUser);
+      }
     };
     checkAuth();
   }, [navigate]);
