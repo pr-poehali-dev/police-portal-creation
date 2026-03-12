@@ -86,12 +86,9 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
       setUser(storedUser);
       setIsAuthenticated(true);
       setLoading(false);
-      // Проверяем сессию в фоне
+      // Проверяем сессию в фоне, не выбрасываем при ошибке
       const verifiedUser = await auth.verify();
-      if (!verifiedUser) {
-        auth.logout();
-        navigate('/login');
-      } else {
+      if (verifiedUser) {
         setUser(verifiedUser);
       }
     };

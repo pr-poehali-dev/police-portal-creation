@@ -88,7 +88,6 @@ export const auth = {
       });
 
       if (!response.ok) {
-        if (response.status === 401) this.logout();
         return null;
       }
 
