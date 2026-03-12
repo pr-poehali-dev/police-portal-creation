@@ -1,1 +1,0 @@
-{"tests": [{"name": "GET sync status", "method": "GET", "path": "/", "expectedStatus": 200}]}
