@@ -282,13 +282,7 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
       
       await crewsApi.deleteCrew(crewId);
       
-      const deleteNotification = {
-        id: Date.now().toString(),
-        message: `Экипаж ${crewName} удалён пользователем ${user?.full_name}`,
-        time: 'Только что',
-        type: 'warning'
-      };
-      setNotifications(prev => [deleteNotification, ...prev]);
+      await addNotification(`Экипаж ${crewName} удалён пользователем ${user?.full_name}`, 'warning');
       
       toast.success('Экипаж удалён');
       loadCrews();
@@ -476,13 +470,13 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
                             <div className="flex-1">
                               <p className="text-sm font-medium text-foreground">{notif.message}</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {new Date(notif.created_at).toLocaleString('ru-RU', { 
+                                {notif.created_at ? new Date(notif.created_at).toLocaleString('ru-RU', { 
                                   day: '2-digit', 
                                   month: '2-digit', 
                                   year: 'numeric',
                                   hour: '2-digit', 
                                   minute: '2-digit' 
-                                })}
+                                }) : 'Только что'}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
