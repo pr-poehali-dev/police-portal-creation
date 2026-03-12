@@ -202,6 +202,7 @@ def handle_register(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict
             'statusCode': 201,
             'headers': get_security_headers(origin, cookie_value=token),
             'body': json.dumps({
+                'token': token,
                 'user': dict(user)
             }),
             'isBase64Encoded': False
@@ -302,6 +303,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
             'statusCode': 200,
             'headers': get_security_headers(origin, cookie_value=token),
             'body': json.dumps({
+                'token': token,
                 'user': user_data
             }),
             'isBase64Encoded': False

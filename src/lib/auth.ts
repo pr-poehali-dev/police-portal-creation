@@ -10,8 +10,27 @@ export interface User {
 }
 
 export interface AuthResponse {
+  token?: string;
   user: User;
 }
+
+const getToken = (): string | null =>
+  sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+
+const saveToken = (token: string) => {
+  sessionStorage.setItem('auth_token', token);
+  localStorage.setItem('auth_token', token);
+};
+
+const clearToken = () => {
+  sessionStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_token');
+};
+
+const getAuthHeader = (): Record<string, string> => {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
 
 export const auth = {
   async register(data: {
@@ -32,6 +51,7 @@ export const auth = {
     }
 
     const result = await response.json();
+    if (result.token) saveToken(result.token);
     localStorage.setItem('user', JSON.stringify(result.user));
     return result;
   },
@@ -50,16 +70,20 @@ export const auth = {
     }
 
     const result = await response.json();
+    if (result.token) saveToken(result.token);
     localStorage.setItem('user', JSON.stringify(result.user));
     return result;
   },
 
   async verify(): Promise<User | null> {
     try {
+      const token = getToken();
+      if (!token) return null;
+
       const response = await fetch(AUTH_API_URL, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ action: 'verify' }),
       });
 
@@ -78,6 +102,7 @@ export const auth = {
   },
 
   logout() {
+    clearToken();
     localStorage.removeItem('user');
   },
 
@@ -92,7 +117,7 @@ export const auth = {
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('user');
+    return !!getToken();
   },
 
   async updateProfile(data: {
@@ -103,7 +128,7 @@ export const auth = {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ action: 'update_profile', ...data }),
     });
 
@@ -121,7 +146,7 @@ export const auth = {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ action: 'delete_self' }),
     });
 
