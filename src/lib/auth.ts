@@ -10,20 +10,10 @@ export interface User {
 }
 
 export interface AuthResponse {
-  token: string;
   user: User;
 }
 
 export const auth = {
-  getToken(): string | null {
-    return localStorage.getItem('auth_token');
-  },
-
-  getAuthHeader(): Record<string, string> {
-    const token = this.getToken();
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  },
-
   async register(data: {
     email: string;
     password: string;
@@ -31,6 +21,7 @@ export const auth = {
   }, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'register', ...data }),
     });
@@ -41,7 +32,6 @@ export const auth = {
     }
 
     const result = await response.json();
-    if (result.token) localStorage.setItem('auth_token', result.token);
     localStorage.setItem('user', JSON.stringify(result.user));
     return result;
   },
@@ -49,6 +39,7 @@ export const auth = {
   async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthResponse> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', email, password }),
     });
@@ -59,19 +50,16 @@ export const auth = {
     }
 
     const result = await response.json();
-    if (result.token) localStorage.setItem('auth_token', result.token);
     localStorage.setItem('user', JSON.stringify(result.user));
     return result;
   },
 
   async verify(): Promise<User | null> {
     try {
-      const token = this.getToken();
-      if (!token) return null;
-
       const response = await fetch(AUTH_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'verify' }),
       });
 
@@ -90,7 +78,6 @@ export const auth = {
   },
 
   logout() {
-    localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
   },
 
@@ -105,7 +92,7 @@ export const auth = {
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('auth_token');
+    return !!localStorage.getItem('user');
   },
 
   async updateProfile(data: {
@@ -115,7 +102,8 @@ export const auth = {
   }): Promise<{ user: User }> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'update_profile', ...data }),
     });
 
@@ -132,7 +120,8 @@ export const auth = {
   async deleteSelf(): Promise<void> {
     const response = await fetch(AUTH_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete_self' }),
     });
 
