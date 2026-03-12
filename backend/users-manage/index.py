@@ -250,6 +250,13 @@ def update_user(event: dict, current_user: dict, origin=None):
                 if 'role' in body:
                     new_role = validate_role(body['role'])
                     
+                    cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+                    target_role_row = cur.fetchone()
+                    target_current_role = target_role_row['role'] if target_role_row else None
+                    
+                    if current_user['role'] == 'admin' and target_current_role == 'manager':
+                        return error_response(403, 'Administrators cannot change the role of a manager', origin)
+                    
                     if current_user['role'] == 'manager' and new_role == 'manager':
                         return error_response(403, 'Managers cannot assign Manager role', origin)
                     
