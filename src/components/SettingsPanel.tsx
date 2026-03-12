@@ -112,7 +112,7 @@ export function SettingsPanel() {
       return ['user', 'moderator', 'admin'];
     }
     if (currentUserRole === 'admin') {
-      return ['user', 'moderator', 'admin', 'manager'];
+      return ['user', 'moderator', 'admin'];
     }
     return ['user'];
   };
@@ -254,18 +254,22 @@ export function SettingsPanel() {
                     </div>
                     {(currentUserRole === 'admin' || currentUserRole === 'manager') && currentUserId !== user.id && (
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleEdit(user)}>
-                          <Icon name="Edit" size={14} className="mr-1" />
-                          Изменить
-                        </Button>
+                        {!(currentUserRole === 'admin' && user.role === 'manager') && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleEdit(user)}>
+                            <Icon name="Edit" size={14} className="mr-1" />
+                            Изменить
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleDeactivate(user.id)}>
                           <Icon name="Ban" size={14} className="mr-1" />
                           Блок
                         </Button>
-                        <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => setDeletingUser(user)}>
-                          <Icon name="Trash2" size={14} className="mr-1" />
-                          Удалить
-                        </Button>
+                        {!(currentUserRole === 'admin' && user.role === 'manager') && (
+                          <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => setDeletingUser(user)}>
+                            <Icon name="Trash2" size={14} className="mr-1" />
+                            Удалить
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
