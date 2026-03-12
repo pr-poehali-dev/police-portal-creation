@@ -33,6 +33,10 @@ const getAuthHeader = (): Record<string, string> => {
 };
 
 export const auth = {
+  getAuthHeader(): Record<string, string> {
+    return getAuthHeader();
+  },
+
   async register(data: {
     email: string;
     password: string;
