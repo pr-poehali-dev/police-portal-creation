@@ -200,8 +200,9 @@ def handle_register(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict
         
         return {
             'statusCode': 201,
-            'headers': get_security_headers(origin, cookie_value=token),
+            'headers': get_security_headers(origin),
             'body': json.dumps({
+                'token': token,
                 'user': dict(user)
             }),
             'isBase64Encoded': False
@@ -300,8 +301,9 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
         
         return {
             'statusCode': 200,
-            'headers': get_security_headers(origin, cookie_value=token),
+            'headers': get_security_headers(origin),
             'body': json.dumps({
+                'token': token,
                 'user': user_data
             }),
             'isBase64Encoded': False
@@ -564,7 +566,7 @@ def handle_delete_self(token: str, client_ip: str, origin=None) -> dict:
         
         return {
             'statusCode': 200,
-            'headers': get_security_headers(origin, clear_cookie=True),
+            'headers': get_security_headers(origin),
             'body': json.dumps({'message': 'Account deleted successfully'}),
             'isBase64Encoded': False
         }
