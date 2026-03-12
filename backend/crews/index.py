@@ -6,9 +6,16 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from security import sanitize_string
 
+ALLOWED_ORIGINS = {
+    'https://police-portal-creation.poehali.dev',
+    'https://preview--police-portal-creation.poehali.dev',
+    'http://localhost:5173',
+    'http://localhost:3000',
+}
+
 def get_cors_headers(origin=None):
     """Возвращает CORS headers с правильным Origin"""
-    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    allowed_origin = origin if origin and origin in ALLOWED_ORIGINS else 'https://police-portal-creation.poehali.dev'
     return {
         'Access-Control-Allow-Origin': allowed_origin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -152,8 +159,7 @@ def get_crews(event: dict, current_user: dict, origin=None):
                               json_build_object(
                                   'user_id', u.id,
                                   'user_id_str', u.user_id,
-                                  'full_name', u.full_name,
-                                  'email', u.email
+                                  'full_name', u.full_name
                               )
                           ) FILTER (WHERE u.id IS NOT NULL),
                           '[]'::json
@@ -310,10 +316,14 @@ def update_crew(event: dict, current_user: dict, origin=None):
 def delete_crew(event: dict, current_user: dict, origin=None):
     """Удалить экипаж"""
     params = event.get('queryStringParameters') or {}
-    crew_id = params.get('crew_id')
+    crew_id_raw = params.get('crew_id')
     
-    if not crew_id:
+    if not crew_id_raw:
         return error_response(400, 'crew_id is required', origin)
+    try:
+        crew_id = int(crew_id_raw)
+    except (ValueError, TypeError):
+        return error_response(400, 'crew_id must be a number', origin)
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -362,7 +372,7 @@ def get_online_users_without_crew(current_user: dict, origin=None):
     cur = conn.cursor()
     try:
         cur.execute(
-            """SELECT DISTINCT u.id, u.user_id, u.full_name, u.email
+            """SELECT DISTINCT u.id, u.user_id, u.full_name
                FROM users u
                JOIN sessions s ON u.id = s.user_id
                WHERE u.is_active = true

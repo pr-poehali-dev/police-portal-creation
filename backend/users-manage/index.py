@@ -36,9 +36,16 @@ def extract_token(headers: dict) -> str:
               headers.get('X-Cookie', '') or headers.get('x-cookie', '')
     return extract_token_from_cookie(cookies)
 
+ALLOWED_ORIGINS = {
+    'https://police-portal-creation.poehali.dev',
+    'https://preview--police-portal-creation.poehali.dev',
+    'http://localhost:5173',
+    'http://localhost:3000',
+}
+
 def get_cors_headers(origin=None):
     """Возвращает CORS headers с правильным Origin"""
-    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    allowed_origin = origin if origin and origin in ALLOWED_ORIGINS else 'https://police-portal-creation.poehali.dev'
     return {
         'Access-Control-Allow-Origin': allowed_origin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',

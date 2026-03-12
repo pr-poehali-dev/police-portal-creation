@@ -15,11 +15,12 @@ export interface AuthResponse {
 }
 
 const getToken = (): string | null =>
-  sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+  sessionStorage.getItem('auth_token');
 
 const saveToken = (token: string) => {
   sessionStorage.setItem('auth_token', token);
-  localStorage.setItem('auth_token', token);
+  // Очищаем старый токен из localStorage если остался
+  localStorage.removeItem('auth_token');
 };
 
 const clearToken = () => {
@@ -56,7 +57,8 @@ export const auth = {
 
     const result = await response.json();
     if (result.token) saveToken(result.token);
-    localStorage.setItem('user', JSON.stringify(result.user));
+    sessionStorage.setItem('user', JSON.stringify(result.user));
+    localStorage.removeItem('user');
     return result;
   },
 
@@ -75,7 +77,8 @@ export const auth = {
 
     const result = await response.json();
     if (result.token) saveToken(result.token);
-    localStorage.setItem('user', JSON.stringify(result.user));
+    sessionStorage.setItem('user', JSON.stringify(result.user));
+    localStorage.removeItem('user');
     return result;
   },
 
@@ -96,7 +99,7 @@ export const auth = {
       }
 
       const result = await response.json();
-      localStorage.setItem('user', JSON.stringify(result.user));
+      sessionStorage.setItem('user', JSON.stringify(result.user));
       return result.user;
     } catch (error) {
       console.error('Verify error:', error);
@@ -106,11 +109,12 @@ export const auth = {
 
   logout() {
     clearToken();
+    sessionStorage.removeItem('user');
     localStorage.removeItem('user');
   },
 
   getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user');
+    const userStr = sessionStorage.getItem('user') || localStorage.getItem('user');
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
@@ -141,7 +145,7 @@ export const auth = {
     }
 
     const result = await response.json();
-    localStorage.setItem('user', JSON.stringify(result.user));
+    sessionStorage.setItem('user', JSON.stringify(result.user));
     return result;
   },
 

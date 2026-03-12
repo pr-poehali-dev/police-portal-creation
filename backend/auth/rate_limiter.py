@@ -1,58 +1,88 @@
 """
-Простой in-memory rate limiter для защиты от brute-force
-ВАЖНО: Это базовая защита. Для продакшена нужен Redis.
+Rate limiter на основе PostgreSQL — устойчив к перезапускам сервера
 """
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-from datetime import datetime, timedelta
-from collections import defaultdict
+MAX_ATTEMPTS = 5
+WINDOW_MINUTES = 15
+BLOCK_MINUTES = 30
 
-# Хранилище попыток входа: {ip: [(timestamp, success), ...]}
-login_attempts = defaultdict(list)
 
-# Хранилище блокировок: {ip: timestamp_разблокировки}
-blocked_ips = {}
+def get_db():
+    return psycopg2.connect(os.environ.get('DATABASE_URL'), cursor_factory=RealDictCursor)
 
-MAX_ATTEMPTS = 5  # Максимум попыток
-WINDOW_MINUTES = 15  # За какой период
-BLOCK_MINUTES = 30  # На сколько блокировать
-
-def clean_old_attempts(ip: str):
-    """Удаляет старые попытки за пределами временного окна"""
-    cutoff = datetime.now() - timedelta(minutes=WINDOW_MINUTES)
-    login_attempts[ip] = [
-        (ts, success) for ts, success in login_attempts[ip]
-        if ts > cutoff
-    ]
 
 def is_blocked(ip: str) -> bool:
-    """Проверяет, заблокирован ли IP"""
-    if ip in blocked_ips:
-        if datetime.now() < blocked_ips[ip]:
-            return True
-        else:
-            # Время блокировки истекло
-            del blocked_ips[ip]
-            login_attempts[ip] = []
-    return False
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "DELETE FROM rate_limit_blocks WHERE ip_address = %s AND blocked_until <= NOW()",
+            (ip,)
+        )
+        conn.commit()
+        cur.execute(
+            "SELECT 1 FROM rate_limit_blocks WHERE ip_address = %s AND blocked_until > NOW()",
+            (ip,)
+        )
+        return cur.fetchone() is not None
+    finally:
+        cur.close()
+        conn.close()
+
 
 def record_attempt(ip: str, success: bool):
-    """Записывает попытку входа"""
-    clean_old_attempts(ip)
-    login_attempts[ip].append((datetime.now(), success))
-    
-    # Проверяем количество неудачных попыток
-    failed_attempts = [1 for ts, s in login_attempts[ip] if not s]
-    
-    if len(failed_attempts) >= MAX_ATTEMPTS:
-        # Блокируем IP
-        blocked_ips[ip] = datetime.now() + timedelta(minutes=BLOCK_MINUTES)
-        print(f"SECURITY: IP {ip} blocked for {BLOCK_MINUTES} minutes after {MAX_ATTEMPTS} failed attempts")
-        return True
-    
-    return False
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO rate_limit_attempts (ip_address, success) VALUES (%s, %s)",
+            (ip, success)
+        )
+        cur.execute(
+            """DELETE FROM rate_limit_attempts
+               WHERE ip_address = %s
+               AND attempted_at < NOW() - INTERVAL '%s minutes'""",
+            (ip, WINDOW_MINUTES)
+        )
+        if not success:
+            cur.execute(
+                """SELECT COUNT(*) as cnt FROM rate_limit_attempts
+                   WHERE ip_address = %s AND success = FALSE
+                   AND attempted_at > NOW() - INTERVAL '%s minutes'""",
+                (ip, WINDOW_MINUTES)
+            )
+            row = cur.fetchone()
+            if row and row['cnt'] >= MAX_ATTEMPTS:
+                cur.execute(
+                    """INSERT INTO rate_limit_blocks (ip_address, blocked_until)
+                       VALUES (%s, NOW() + INTERVAL '%s minutes')
+                       ON CONFLICT (ip_address) DO UPDATE
+                       SET blocked_until = NOW() + INTERVAL '%s minutes'""",
+                    (ip, BLOCK_MINUTES, BLOCK_MINUTES)
+                )
+                print(f"SECURITY: IP {ip} blocked for {BLOCK_MINUTES} minutes")
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
 
 def get_remaining_attempts(ip: str) -> int:
-    """Возвращает количество оставшихся попыток"""
-    clean_old_attempts(ip)
-    failed = len([1 for ts, s in login_attempts[ip] if not s])
-    return max(0, MAX_ATTEMPTS - failed)
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT COUNT(*) as cnt FROM rate_limit_attempts
+               WHERE ip_address = %s AND success = FALSE
+               AND attempted_at > NOW() - INTERVAL '%s minutes'""",
+            (ip, WINDOW_MINUTES)
+        )
+        row = cur.fetchone()
+        failed = row['cnt'] if row else 0
+        return max(0, MAX_ATTEMPTS - failed)
+    finally:
+        cur.close()
+        conn.close()

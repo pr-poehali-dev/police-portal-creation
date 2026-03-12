@@ -137,6 +137,14 @@ def extract_token(headers: dict) -> str:
 
 def handle_register(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
     """Регистрация нового пользователя"""
+    if is_blocked(client_ip):
+        return {
+            'statusCode': 429,
+            'headers': get_security_headers(origin),
+            'body': json.dumps({'error': 'Too many requests. Try again later.'}),
+            'isBase64Encoded': False
+        }
+    
     try:
         email = sanitize_email(body.get('email', ''))
         password = validate_password(body.get('password', ''))
@@ -322,9 +330,7 @@ def handle_login(body: dict, client_ip: str = '0.0.0.0', origin=None) -> dict:
 
 def handle_verify(token: str, origin=None) -> dict:
     """Проверка токена и получение данных пользователя"""
-    print(f"DEBUG handle_verify: token={token[:20] if token else 'EMPTY'}...")
     if not token:
-        print("DEBUG handle_verify: NO TOKEN - returning 401")
         return {
             'statusCode': 401,
             'headers': get_security_headers(origin),
@@ -346,10 +352,8 @@ def handle_verify(token: str, origin=None) -> dict:
             (token_hash,)
         )
         user = cur.fetchone()
-        print(f"DEBUG handle_verify: user found={user is not None}")
         
         if not user:
-            print(f"DEBUG handle_verify: NO USER for token_hash={token_hash[:20]}...")
             return {
                 'statusCode': 401,
                 'headers': get_security_headers(origin),
@@ -362,8 +366,6 @@ def handle_verify(token: str, origin=None) -> dict:
             (token_hash,)
         )
         conn.commit()
-        
-        print(f"DEBUG handle_verify: SUCCESS - returning user")
         return {
             'statusCode': 200,
             'headers': get_security_headers(origin),

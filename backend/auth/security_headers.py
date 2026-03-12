@@ -2,9 +2,21 @@
 Security headers для всех API-ответов
 """
 
+ALLOWED_ORIGINS = {
+    'https://police-portal-creation.poehali.dev',
+    'https://preview--police-portal-creation.poehali.dev',
+    'http://localhost:5173',
+    'http://localhost:3000',
+}
+
+def get_allowed_origin(origin):
+    if origin and origin in ALLOWED_ORIGINS:
+        return origin
+    return 'https://police-portal-creation.poehali.dev'
+
 def get_security_headers(origin=None, cookie_value=None, clear_cookie=False):
     """Возвращает стандартные security headers для API"""
-    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    allowed_origin = get_allowed_origin(origin)
     headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': allowed_origin,
@@ -23,7 +35,7 @@ def get_security_headers(origin=None, cookie_value=None, clear_cookie=False):
 
 def get_cors_headers(origin=None):
     """Возвращает CORS headers для OPTIONS"""
-    allowed_origin = origin if origin and (origin.endswith('.poehali.dev') or origin.startswith('http://localhost')) else 'https://app.poehali.dev'
+    allowed_origin = get_allowed_origin(origin)
     return {
         'Access-Control-Allow-Origin': allowed_origin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
