@@ -260,10 +260,12 @@ export function SettingsPanel() {
                             Изменить
                           </Button>
                         )}
-                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleDeactivate(user.id)}>
-                          <Icon name="Ban" size={14} className="mr-1" />
-                          Блок
-                        </Button>
+                        {!(currentUserRole === 'admin' && user.role === 'manager') && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleDeactivate(user.id)}>
+                            <Icon name="Ban" size={14} className="mr-1" />
+                            Отменить верификацию
+                          </Button>
+                        )}
                         {!(currentUserRole === 'admin' && user.role === 'manager') && (
                           <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => setDeletingUser(user)}>
                             <Icon name="Trash2" size={14} className="mr-1" />
