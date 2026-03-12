@@ -5,23 +5,15 @@
       "method": "GET",
       "path": "/",
       "expectedStatus": 401,
-      "expectedBody": {
-        "error": "string"
-      },
+      "expectedBody": {"error": "string"},
       "bodyMatcher": "partial"
     },
     {
-      "name": "Create crew without auth",
-      "method": "POST",
-      "path": "/",
-      "body": {
-        "callsign": "L-1",
-        "location": "Test location"
-      },
+      "name": "Get online users without auth",
+      "method": "GET",
+      "path": "/?resource=online_users",
       "expectedStatus": 401,
-      "expectedBody": {
-        "error": "string"
-      },
+      "expectedBody": {"error": "string"},
       "bodyMatcher": "partial"
     }
   ]

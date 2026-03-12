@@ -92,31 +92,14 @@ export const crewsApi = {
   },
 
   async getAvailableUsers(): Promise<{ id: number; user_id: string; full_name: string; email: string }[]> {
-    const usersResponse = await fetch('https://functions.poehali.dev/348afac0-d112-4953-b5da-6eafc2cf5bec?status=active', {
+    const response = await fetch(`${CREWS_API_URL}?resource=online_users`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
     });
 
-    if (!usersResponse.ok) throw new Error('Failed to fetch users');
+    if (!response.ok) throw new Error('Failed to fetch online users');
 
-    const usersData = await usersResponse.json();
-
-    const crewsResponse = await fetch(CREWS_API_URL, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json', ...auth.getAuthHeader() },
-    });
-
-    if (!crewsResponse.ok) throw new Error('Failed to fetch crews');
-
-    const crewsData = await crewsResponse.json();
-
-    const usersInCrews = new Set();
-    crewsData.crews.forEach((crew: Crew) => {
-      crew.members.forEach((member: CrewMember) => {
-        usersInCrews.add(member.user_id);
-      });
-    });
-
-    return usersData.users.filter((user: { id: number }) => !usersInCrews.has(user.id));
+    const data = await response.json();
+    return data.users || [];
   },
 };

@@ -63,6 +63,9 @@ def handler(event: dict, context) -> dict:
         return error_response(401, 'Invalid token', origin)
     
     try:
+        params = event.get('queryStringParameters') or {}
+        if method == 'GET' and params.get('resource') == 'online_users':
+            return get_online_users_without_crew(current_user, origin)
         if method == 'GET':
             return get_crews(event, current_user, origin)
         elif method == 'POST':
@@ -349,6 +352,34 @@ def delete_crew(event: dict, current_user: dict, origin=None):
             print(f"Log error: {e}")
         
         return success_response({'message': 'Crew deleted successfully'}, origin)
+    finally:
+        cur.close()
+        conn.close()
+
+def get_online_users_without_crew(current_user: dict, origin=None):
+    """Получить список активных пользователей онлайн без экипажа"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT DISTINCT u.id, u.user_id, u.full_name, u.email
+               FROM users u
+               JOIN sessions s ON u.id = s.user_id
+               WHERE u.is_active = true
+                 AND s.expires_at > NOW()
+                 AND s.last_seen > NOW() - INTERVAL '5 minutes'
+                 AND u.id != %s
+                 AND u.id NOT IN (SELECT user_id FROM crew_members)
+               ORDER BY u.full_name""",
+            (current_user['id'],)
+        )
+        users = cur.fetchall()
+        return {
+            'statusCode': 200,
+            'headers': get_cors_headers(origin),
+            'body': json.dumps({'users': [dict(u) for u in users]}, default=str),
+            'isBase64Encoded': False
+        }
     finally:
         cur.close()
         conn.close()

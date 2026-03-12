@@ -100,6 +100,9 @@ const Index = ({ initialTab = "crews" }: IndexProps) => {
       loadCrews();
       loadBolos();
       loadNotifications();
+      // Пингуем сервер каждые 2 минуты, чтобы сервер знал что мы онлайн
+      const pingInterval = setInterval(() => { auth.verify(); }, 2 * 60 * 1000);
+      return () => clearInterval(pingInterval);
     }
   }, [isAuthenticated]);
 

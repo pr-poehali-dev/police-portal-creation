@@ -357,6 +357,12 @@ def handle_verify(token: str, origin=None) -> dict:
                 'isBase64Encoded': False
             }
         
+        cur.execute(
+            "UPDATE sessions SET last_seen = NOW() WHERE token_hash = %s",
+            (token_hash,)
+        )
+        conn.commit()
+        
         print(f"DEBUG handle_verify: SUCCESS - returning user")
         return {
             'statusCode': 200,
